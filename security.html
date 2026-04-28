@@ -904,6 +904,7 @@ async function saveCamerasToCloud(){
       console.log('cameras saved to cloud: '+cameras.length+' cameras');
       const el=document.getElementById('cam-sync-status');
       if(el){ el.textContent='✓ 已上傳 '+cameras.length+' 台到雲端'; el.style.color='var(--green)'; }
+      pushCameraListToFactoryMap();
     } else {
       console.warn('saveCamerasToCloud GAS error:', json.error);
       const el=document.getElementById('cam-sync-status');
@@ -2008,9 +2009,9 @@ function renderPatrolCompare(){
 // ═══════════════════════════════════════════════════════
 // BOT CONFIG (localStorage)
 // ═══════════════════════════════════════════════════════
-function getGasUrl(){ return localStorage.getItem('vrt_gas_url')||''; }
+function getGasUrl(){ return localStorage.getItem('vrt_gas_url')||'https://script.google.com/macros/s/AKfycbxxVMFewxyOcN156IgLKfqQ5KhbP4WLoSAeb_Q10HIqqA968QGPIwGx4yKI8JSo5H0V/exec'; }
 function getChatId(){ return localStorage.getItem('vrt_chat_id')||''; }
-function getSecret(){ return localStorage.getItem('vrt_secret')||''; }
+function getSecret(){ return localStorage.getItem('vrt_secret')||'vrt2026security'; }
 
 function saveBotConfig(){
   const url=(document.getElementById('cfg-gas-url').value||'').trim();
@@ -2255,6 +2256,19 @@ window.addEventListener('DOMContentLoaded',()=>{
   setTimeout(()=>syncCamerasFromCloud(), 2000);
   setLang('zh');
 });
+
+// AUTO-SYNC cameras to GAS Devices sheet so factory-map picks it up
+// Called after saveCamerasToCloud succeeds
+// 中: 攝像頭增減後自動同步至 Google Sheets → factory-map 60s 內自動更新
+// EN: After adding/removing cameras, factory-map auto-updates within 60s
+async function pushCameraListToFactoryMap(){
+  const url=getGasUrl(); if(!url) return;
+  const cameras=getCameras();
+  try{
+    await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({type:'syncCameraList',cameras,secret:getSecret()})});
+  }catch(e){ console.warn('pushCameraListToFactoryMap:',e); }
+}
 </script>
 </body>
 </html>

@@ -781,10 +781,9 @@ function switchMain(t){
 // ═══════════════════════════════════════════════════════
 // DATE HELPERS
 // ═══════════════════════════════════════════════════════
-// ── 本地時區日期工具（用 getFullYear/getMonth/getDate 避免 UTC+7 偏移問題）──
-const fmtDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-const todayStr=()=>fmtDate(new Date());
+const todayStr=()=>new Date().toISOString().slice(0,10);
 const parseDate=s=>{const[y,m,d]=s.split('-');return new Date(+y,+m-1,+d);};
+const fmtDate=d=>d.toISOString().slice(0,10);
 const addDays=(s,n)=>{const d=parseDate(s);d.setDate(d.getDate()+n);return fmtDate(d);};
 const getWeekDays=s=>{const d=parseDate(s),day=d.getDay()||7,mon=new Date(d);
   mon.setDate(d.getDate()-(day-1));return Array.from({length:7},(_,i)=>{const x=new Date(mon);x.setDate(mon.getDate()+i);return fmtDate(x);});};
@@ -841,6 +840,11 @@ function setSyncStatus(msg, type){
 
 async function syncFromCloud(date){
   const url=getGasUrl(); if(!url){ setSyncStatus(LANG==='zh'?'— 未設定 GAS URL':'— GAS URL not set','warn'); return; }
+  // 防重複：同一日期 30 秒內不重複觸發
+  const nowTs=Date.now();
+  if(!syncFromCloud._lastTs) syncFromCloud._lastTs={};
+  if(syncFromCloud._lastTs[date] && nowTs-syncFromCloud._lastTs[date]<30000) return;
+  syncFromCloud._lastTs[date]=nowTs;
   setSyncStatus(LANG==='zh'?'⟳ 同步中…':'⟳ Syncing…','info');
   try{
     // Use POST instead of GET to avoid CORS redirect issues
@@ -931,10 +935,28 @@ async function syncCamerasFromCloud(silent=false){
       body:JSON.stringify({type:'getCameras',secret:getSecret()})});
     const json=await res.json();
     if(json.ok && json.cameras && json.cameras.length){
-      saveCameras(json.cameras);
+      // 驗證：至少要有 code 欄位，否則是壞資料，不覆蓋 localStorage
+      const valid = json.cameras.filter(c => c.code && c.code !== 'undefined' && c.code !== '');
+      if(valid.length === 0){
+        const msg = LANG==='zh'?'⚠ 雲端資料異常，保留本地設定':'⚠ Cloud data invalid, keeping local';
+        if(statusEl){statusEl.textContent=msg;statusEl.style.color='var(--amber)';}
+        return;
+      }
+      // 補齊缺少的欄位（用 DEFAULT_CAMERAS 對照）
+      const defMap = {};
+      DEFAULT_CAMERAS.forEach(d=>{ defMap[d.code]=d; });
+      const merged = valid.map((c,i)=>({
+        id:      (c.id && c.id!=='undefined') ? parseInt(c.id) : (defMap[c.code]?.id || i+1),
+        code:    c.code,
+        loc:     (c.loc && c.loc!=='undefined') ? c.loc : (defMap[c.code]?.loc || ''),
+        bldg:    (c.bldg && c.bldg!=='undefined') ? c.bldg : (defMap[c.code]?.bldg || 'A'),
+        noVideo: !!c.noVideo,
+        active:  c.active !== false && c.active !== 'false',
+      }));
+      saveCameras(merged);
       renderCctv();
       renderSettingsTable();
-      const msg=LANG==='zh'?`✓ 已同步 ${json.cameras.length} 台攝像機`:`✓ Synced ${json.cameras.length} cameras`;
+      const msg=LANG==='zh'?`✓ 已同步 ${merged.length} 台攝像機`:`✓ Synced ${merged.length} cameras`;
       if(statusEl) statusEl.textContent=msg;
       if(statusEl) statusEl.style.color='var(--green)';
       if(!silent) toast(msg);

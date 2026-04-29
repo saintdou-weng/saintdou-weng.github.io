@@ -2275,8 +2275,11 @@ window.addEventListener('DOMContentLoaded',()=>{
   if(secInp) secInp.value=secret;
   renderCctv();
   startAutoSync();
-  // Sync camera list from cloud on startup
-  setTimeout(()=>syncCamerasFromCloud(), 2000);
+  // 啟動時只有在本地沒有攝像機資料時才從雲端同步，避免覆蓋本地設定
+  const localCams = localStorage.getItem('vrt_cameras');
+  if(!localCams || localCams === '[]') {
+    setTimeout(()=>syncCamerasFromCloud(), 2000);
+  }
   setLang('zh');
 });
 

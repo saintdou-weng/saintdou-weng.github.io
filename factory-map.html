@@ -1192,8 +1192,10 @@ function renderMk(){
 
     // ── CCTV 異常覆蓋徽章（從 security.html 同步的資料）──
     if(d.type==='cam'){
-      var camCode=(d.code||d.name||'').replace(/^CCTV\s*/i,'').trim();
-      var faultInfo=_cctvFaults[camCode];
+      var rawCode = (d.code||d.name||'');
+      var strippedCode = rawCode.replace(/^CCTV\s*/i,'').trim();
+      // 查兩種格式：原始 "CCTV A-01" 和去前綴 "A-01"
+      var faultInfo = _cctvFaults[rawCode] || _cctvFaults[strippedCode];
       if(faultInfo){
         var badge=document.createElement('div');
         badge.className='cctv-alert-badge'+(faultInfo.note?' has-note':'');
@@ -1587,27 +1589,31 @@ async function cloudSync(silent){
       setBadge('✅ '+(_lastSyncTs?_lastSyncTs.substring(11,16):'OK'), '#1a7a3a');
       if(!silent) toast('☁ 雲端同步完成 Cloud synced ផ្ទុកឡើងជោគជ័យ');
 
-      // ── 順帶抓今日 CCTV 異常（來自 security.html）──
-      try{
-        var cctvResp = await fetch(url+'?action=getCctvStatus&secret='+encodeURIComponent(getGasSecret()));
-        var cctvJson = await cctvResp.json();
-        if(cctvJson.ok){
-          _cctvFaults = {};
-          (cctvJson.faults||[]).forEach(function(f){ _cctvFaults[f.code]=f; });
-          var faultCount = Object.keys(_cctvFaults).length;
-          var bar = gEl('cctv-fault-bar');
-          var cnt = gEl('cctv-fault-count');
-          if(bar && cnt){
-            cnt.textContent = faultCount;
-            bar.className = 'cctv-fault-bar'+(faultCount>0?' visible':'');
-          }
-          renderMk(); // 重繪以顯示/隱藏徽章
-        }
-      }catch(e){ console.warn('getCctvStatus error:',e); }
-
     } else {
       setBadge('⚠ ' + (json.error||'no data'), '#e67700');
     }
+
+    // ── 不論 Devices 是否有資料，都抓今日 CCTV 異常 ──
+    try{
+      var cctvResp = await fetch(url+'?action=getCctvStatus&secret='+encodeURIComponent(getGasSecret()));
+      var cctvJson = await cctvResp.json();
+      if(cctvJson.ok){
+        _cctvFaults = {};
+        (cctvJson.faults||[]).forEach(function(f){
+          _cctvFaults[f.code] = f;
+          var stripped = (f.code||'').replace(/^CCTV\s*/i,'').trim();
+          if(stripped && stripped !== f.code) _cctvFaults[stripped] = f;
+        });
+        var faultCount = Object.keys(_cctvFaults).length;
+        var bar = gEl('cctv-fault-bar');
+        var cnt = gEl('cctv-fault-count');
+        if(bar && cnt){
+          cnt.textContent = faultCount;
+          bar.className = 'cctv-fault-bar'+(faultCount>0?' visible':'');
+        }
+        renderMk();
+      }
+    }catch(e){ console.warn('getCctvStatus error:',e); }
   }catch(e){
     setBadge('❌ sync error', '#cc2200');
     console.warn('cloudSync error:',e);

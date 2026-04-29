@@ -57,6 +57,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 .mk.fpulse{animation:pf .9s infinite}
 .mk.fault-mk{filter:drop-shadow(0 0 3px rgba(204,34,0,.9))}
 .mk.warn-mk{filter:drop-shadow(0 0 3px rgba(230,119,0,.8))}
+/* Telegram 深連結高亮：點「查看地圖」按鈕後自動定位並閃爍 */
+.mk.hash-highlight{animation:hashPulse 0.6s ease-in-out 6;z-index:100}
+@keyframes hashPulse{
+  0%,100%{transform:scale(1) translate(-50%,-50%);filter:none}
+  50%{transform:scale(1.8) translate(-28%,-28%);filter:drop-shadow(0 0 8px #ff4400) brightness(1.4)}
+}
+.cctv-alert-badge{position:absolute;top:-6px;right:-6px;width:16px;height:16px;
+  background:#dc2626;border-radius:50%;border:2px solid #fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:9px;color:#fff;font-weight:900;z-index:9;
+  animation:cctvPulse 1.2s ease-in-out infinite;pointer-events:none}
+.cctv-alert-badge.has-note{background:#7c3aed}
+@keyframes cctvPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(220,38,38,.6)}
+  50%{transform:scale(1.25);box-shadow:0 0 0 5px rgba(220,38,38,0)}}
+/* CCTV 異常統計條 */
+#cctv-fault-bar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+  background:rgba(220,38,38,.92);color:#fff;border-radius:20px;
+  padding:4px 14px;font-size:12px;font-weight:700;z-index:20;
+  display:none;gap:8px;align-items:center;white-space:nowrap;
+  box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer}
+#cctv-fault-bar.visible{display:flex}
 /* PLACE BAR */
 #pbar{position:absolute;bottom:62px;left:50%;transform:translateX(-50%);background:var(--sur);border:2px solid var(--cam);border-radius:26px;padding:6px 12px;display:none;align-items:center;gap:8px;z-index:30;box-shadow:0 3px 12px rgba(0,102,204,.22);white-space:nowrap}
 #pbar.show{display:flex}
@@ -230,6 +251,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
         <img id="mimg" src="" style="display:block">
         <div id="mkl"></div>
       </div>
+    </div>
+    <!-- CCTV 異常統計條（從 security.html 同步） -->
+    <div id="cctv-fault-bar" onclick="showCctvFaultList()">
+      <span>📷 ❗</span><span id="cctv-fault-count">0</span> 台 CCTV 異常
     </div>
     <div id="ov-banner" id="ov-banner"></div>
     <div id="pbar">
@@ -844,6 +869,8 @@ function L(k){return (LB[lang]&&LB[lang][k])?LB[lang][k]:k;}
 // ── STATE ──
 var SEED=[{"id": "fe21", "type": "ext", "name": "FE23", "note": "Back Building A", "bld": "A", "status": "ok", "px": 0.09411505371003052, "py": 0.09681200358216885}, {"id": "fe22", "type": "ext", "name": "FE20", "note": "Near Machine maintenance Room", "bld": "A", "status": "ok", "px": 0.8682270934851029, "py": 0.12095187248897761}, {"id": "fe23", "type": "ext", "name": "FE22", "note": "Back Building A", "bld": "A", "status": "ok", "px": 0.4883878056733791, "py": 0.09220985691573924}, {"id": "fe11", "type": "ext", "name": "FE18", "note": "Near snap attachment area", "bld": "A", "status": "ok", "px": 0.36798000969377925, "py": 0.12385487444733083}, {"id": "fe14", "type": "ext", "name": "FE19", "note": "In front of QC line 1", "bld": "A", "status": "ok", "px": 0.5766377135551715, "py": 0.11923671346284055}, {"id": "fe15", "type": "ext", "name": "FE16", "note": "Carton stock building A", "bld": "A", "status": "ok", "px": 0.3340259555685488, "py": 0.3212095731800664}, {"id": "fe02", "type": "ext", "name": "FE11", "note": "Ironing Area", "bld": "A", "status": "ok", "px": 0.36659298328778916, "py": 0.6456092858075296}, {"id": "fe48", "type": "ext", "name": "FE10", "note": "Inside Carton area", "bld": "A", "status": "ok", "px": 0.05445582656354881, "py": 0.3817247766558861}, {"id": "fe05", "type": "ext", "name": "FE12", "note": "In front of sewing 8-9", "bld": "A", "status": "ok", "px": 0.5801682160776837, "py": 0.6557982642569302}, {"id": "fe20", "type": "ext", "name": "FE17", "note": "Back Packing A", "bld": "A", "status": "ok", "px": 0.19013267988281496, "py": 0.14864814397022147}, {"id": "fe16", "type": "ext", "name": "FE21", "note": "Back Building A", "bld": "A", "status": "ok", "px": 0.7802826862408558, "py": 0.09410314424702193}, {"id": "fe08", "type": "ext", "name": "FE14", "note": "Between sewing 3-4", "bld": "A", "status": "ok", "px": 0.7906357946895525, "py": 0.3446759604234078}, {"id": "fe09", "type": "ext", "name": "FE15", "note": "In front of sewing line 3-4", "bld": "A", "status": "ok", "px": 0.579172017079138, "py": 0.31927703456427403}, {"id": "fe10", "type": "ext", "name": "FE13", "note": "Between sewing 8-9", "bld": "A", "status": "ok", "px": 0.7890736671288044, "py": 0.6572912373913287}, {"id": "fe01", "type": "ext", "name": "FE08", "note": "Outside Carton area", "bld": "A", "status": "ok", "px": 0.049179550980050585, "py": 0.8238792116594791}, {"id": "fe06", "type": "ext", "name": "FE09", "note": "Inside Carton Area", "bld": "A", "status": "ok", "px": 0.053896555036415106, "py": 0.6671201309987783}, {"id": "fe07", "type": "ext", "name": "FE07", "note": "Front wall Sewing Line 11", "bld": "A", "status": "ok", "px": 0.3940546044672506, "py": 0.8437208831005509}, {"id": "fe19", "type": "ext", "name": "FE06", "note": "Near Sewing Sample Line", "bld": "A", "status": "ok", "px": 0.8497160325502128, "py": 0.842177034583856}, {"id": "fe29", "type": "ext", "name": "FE27", "note": "Chemical Room", "bld": "B", "status": "ok", "px": 1.0108533357793776, "py": 0.8989137788612424}, {"id": "fe43", "type": "ext", "name": "FE28", "note": "Chemical room", "bld": "B", "status": "ok", "px": 1.0084539774056709, "py": 0.6681188694256845}, {"id": "fe30", "type": "ext", "name": "FE25", "note": "Back building B", "bld": "B", "status": "ok", "px": 0.5678885554426946, "py": 1.026217374644826}, {"id": "fe45", "type": "ext", "name": "FE26", "note": "Back Building B", "bld": "B", "status": "ok", "px": 0.977995897335673, "py": 1.0296226476554091}, {"id": "1774058931817", "type": "ext", "name": "FE05", "note": "Office", "bld": "A", "status": "ok", "px": null, "py": null}, {"id": "1774400519696", "type": "exit", "name": "EL01", "note": "Office", "bld": "A", "status": "ok", "px": 0.925150651159968, "py": 0.8475612376051019}, {"id": "1774403370228", "type": "exit", "name": "EL02", "note": "Building A", "bld": "A", "status": "ok", "px": 0.8674371352737063, "py": 0.8451394844421736}, {"id": "1774403697568", "type": "exit", "name": "EL03", "note": "Building A", "bld": "A", "status": "ok", "px": 0.8684232563627897, "py": 0.8441971383147854}, {"id": "1774403721479", "type": "exit", "name": "EL03", "note": "Building A", "bld": "A", "status": "ok", "px": 0.6501091059828802, "py": 0.845138165764834}, {"id": "1774403782016", "type": "exit", "name": "EL04", "note": "Near WC", "bld": "A", "status": "ok", "px": 0.5028242760548138, "py": 0.845665980229306}, {"id": "1774403802080", "type": "exit", "name": "EL05", "note": "Loading Area", "bld": "A", "status": "ok", "px": 0.21192917197665587, "py": 0.8388025686500735}, {"id": "1774403826112", "type": "exit", "name": "EL06", "note": "Back Packing", "bld": "A", "status": "ok", "px": 0.21942135174811866, "py": 0.12176811908170188}, {"id": "1774403851826", "type": "exit", "name": "EL07", "note": "Snap button attachment area", "bld": "A", "status": "ok", "px": 0.3994618850464469, "py": 0.1203751888187401}, {"id": "1774403876554", "type": "exit", "name": "EL08", "note": "Near QC sewing line1", "bld": "A", "status": "ok", "px": 0.6517885861214325, "py": 0.11894145216697859}, {"id": "1774404004419", "type": "exit", "name": "EL09", "note": "Near Machine maintenance room", "bld": "A", "status": "ok", "px": 0.8267513954169514, "py": 0.11737762390283858}, {"id": "1774404321367", "type": "hydrant", "name": "HR01", "note": "Near sewing sample line", "bld": "A", "status": "ok", "px": 0.7721651460508939, "py": 0.8442067458220048}, {"id": "1774404344149", "type": "hydrant", "name": "HR02", "note": "Near loading area", "bld": "A", "status": "ok", "px": 0.2918042858638582, "py": 0.8427182392535365}, {"id": "1774404363773", "type": "hydrant", "name": "HR03", "note": "Packing A", "bld": "A", "status": "ok", "px": 0.045186018443317016, "py": 0.49252462001736624}, {"id": "1774404467715", "type": "hydrant", "name": "HR04", "note": "Near snap button attachment area", "bld": "A", "status": "ok", "px": 0.32344412372608794, "py": 0.1198024335216712}, {"id": "1774404501242", "type": "hydrant", "name": "HR05", "note": "Near sewing line1", "bld": "A", "status": "ok", "px": 0.7111632661458335, "py": 0.12319725187372246}, {"id": "1774404529906", "type": "hydrant", "name": "HR12", "note": "QC room", "bld": "A", "status": "ok", "px": 0.9402320086693106, "py": 0.4377943997941196}, {"id": "1774405840752", "type": "bell", "name": "FA01", "note": "in front of building A", "bld": "A", "status": "ok", "px": 0.6683601229080107, "py": 0.8452470712707997}, {"id": "1774405895259", "type": "bell", "name": "FA02", "note": "Back Building A", "bld": "A", "status": "ok", "px": 0.6691019492363075, "py": 0.1195370656193387}, {"id": "1774423712261", "type": "exit", "name": "EL10", "note": "Building B", "bld": "B", "status": "fault", "px": 0.25150876360472674, "py": 0.161642585743293}, {"id": "1774423767147", "type": "exit", "name": "EL11", "note": "Building B", "bld": "B", "status": "ok", "px": 0.470148838326352, "py": 0.1632881686783814}, {"id": "1774423801795", "type": "exit", "name": "EL12", "note": "fabric warehouse", "bld": "B", "status": "ok", "px": 0.8719762459598744, "py": 0.9748335174974138}, {"id": "1774423837946", "type": "exit", "name": "EL13", "note": "fabric rack", "bld": "B", "status": "fault", "px": 0.9438651055684295, "py": 0.9748335174974138}, {"id": "1774423880386", "type": "exit", "name": "EL14", "note": "In front of cutting table 1", "bld": "B", "status": "ok", "px": 0.7142101789017796, "py": 0.977878047216956}, {"id": "1774423969817", "type": "exit", "name": "EL15", "note": "Cutting table 1", "bld": "B", "status": "ok", "px": 0.5346392336436054, "py": 0.9761084219611302}, {"id": "1774424075650", "type": "exit", "name": "EL16", "note": "near old sewing machine area", "bld": "B", "status": "ok", "px": 0.23581558034130817, "py": 0.9697704188570961}, {"id": "1774424210756", "type": "exit", "name": "EL17", "note": "trim", "bld": "B", "status": "ok", "px": 0.09880763116057227, "py": 0.19554848966613675}, {"id": "1774424224339", "type": "exit", "name": "EL18", "note": "Trim", "bld": "B", "status": "ok", "px": 0.09253900039745622, "py": 0.6232114467408585}, {"id": "1774512352684", "type": "hydrant", "name": "HR06", "note": "Fabric rack", "bld": "B", "status": "ok", "px": 0.8352598662481838, "py": 0.9726564350809396}, {"id": "1774512363908", "type": "hydrant", "name": "HR07", "note": "Cut panel inspection area", "bld": "B", "status": "ok", "px": 0.36097746923926105, "py": 0.9724339427604243}, {"id": "1774512373636", "type": "hydrant", "name": "HR08", "note": "Near testing room", "bld": "B", "status": "ok", "px": 0.1372118424881927, "py": 0.5735785601020668}, {"id": "1774512382812", "type": "hydrant", "name": "HR09", "note": "Finger print area (building B)", "bld": "B", "status": "ok", "px": 0.22526994644986367, "py": 0.16349647967295028}, {"id": "1774512407051", "type": "hydrant", "name": "HR10", "note": "Fabric rack area", "bld": "B", "status": "ok", "px": 0.9871304211412741, "py": 0.5120162714694225}, {"id": "1774512416826", "type": "hydrant", "name": "HR11", "note": "Building B", "bld": "B", "status": "ok", "px": 0.7605065012971812, "py": 0.1656246493459825}, {"id": "1774512532200", "type": "bell", "name": "FA03", "note": "", "bld": "B", "status": "ok", "px": 0.5147721659235003, "py": 0.9754306638469541}, {"id": "1774512542608", "type": "bell", "name": "FA04", "note": "", "bld": "B", "status": "ok", "px": 0.26680264511084406, "py": 0.16093795663142102}, {"id": "1774573477281", "type": "ext", "name": "FE05", "note": "Office", "bld": "A", "status": "ok", "px": 0.9415490921569472, "py": 0.8313946873825777}, {"id": "1774577016160", "type": "ext", "name": "FE24", "note": "Back building B", "bld": "B", "status": "ok", "px": 0.03885898202977345, "py": 1.0268258804736676}, {"id": "1774577242284", "type": "ext", "name": "FE29", "note": "Fabric warehouse", "bld": "B", "status": "ok", "px": 0.8503182287642884, "py": 0.9707267855626915}, {"id": "1774577274058", "type": "ext", "name": "FE30", "note": "In front of cutting table 1", "bld": "B", "status": "ok", "px": 0.6795509632954854, "py": 0.9730791896623346}, {"id": "1774577291746", "type": "ext", "name": "FE31", "note": "Cutting Panel", "bld": "B", "status": "ok", "px": 0.3025847762465634, "py": 0.9740210437173622}, {"id": "1774577310906", "type": "ext", "name": "FE32", "note": "Near old sewing machine area", "bld": "B", "status": "ok", "px": 0.2019514907359456, "py": 0.9717541648259943}, {"id": "1774577329962", "type": "ext", "name": "FE33", "note": "Near old sewing machine area", "bld": "B", "status": "ok", "px": 0.13723134935339226, "py": 0.883527064272051}, {"id": "1774577342993", "type": "ext", "name": "FE34", "note": "QC cutting", "bld": "B", "status": "ok", "px": 0.33312101447904346, "py": 0.7111726156169418}, {"id": "1774577361601", "type": "ext", "name": "FE35", "note": "Security warehouse", "bld": "B", "status": "ok", "px": 0.7732852737825301, "py": 0.4286311931135925}, {"id": "1774577389071", "type": "ext", "name": "FE36", "note": "Between cutting table 10-11", "bld": "B", "status": "ok", "px": 0.3947873269083889, "py": 0.3799582527946909}, {"id": "1774577406783", "type": "ext", "name": "FE37", "note": "Near stair at trim", "bld": "B", "status": "ok", "px": 0.19799241788402677, "py": 0.2582773345140108}, {"id": "1774577419519", "type": "ext", "name": "FE38", "note": "Trim", "bld": "B", "status": "ok", "px": 0.10004114568378084, "py": 0.31541135609240195}, {"id": "1774577430200", "type": "ext", "name": "FE39", "note": "Trim", "bld": "B", "status": "ok", "px": 0.087999350067765, "py": 0.7770205251289751}, {"id": "1774577452656", "type": "ext", "name": "FE40", "note": "In front of building B", "bld": "B", "status": "ok", "px": 0.3161322223440398, "py": 0.12514968214524314}, {"id": "1774577468760", "type": "ext", "name": "FE41", "note": "In front of building B", "bld": "B", "status": "ok", "px": 0.6994977171767065, "py": 0.128545572442919}, {"id": "1774577491370", "type": "ext", "name": "FE42", "note": "Inside building B", "bld": "B", "status": "ok", "px": 0.7887526499212401, "py": 0.16787189873760933}, {"id": "1774577509034", "type": "ext", "name": "FE43", "note": "fabric warehouse", "bld": "B", "status": "ok", "px": 0.8406521743422595, "py": 0.3314452844333419}, {"id": "1774577523714", "type": "ext", "name": "FE44", "note": "fabric warehouse", "bld": "B", "status": "ok", "px": 0.8446729991256771, "py": 0.6871905143973797}, {"id": "1774577543953", "type": "ext", "name": "FE45", "note": "Inside building B", "bld": "B", "status": "ok", "px": 0.9327980618248048, "py": 0.16950005232419316}, {"id": "1774577563787", "type": "ext", "name": "FE46", "note": "Garbage area", "bld": "B", "status": "ok", "px": 0.905013481813796, "py": 0.05094156394051473}, {"id": "1774599241679", "type": "ext", "name": "CCTV16", "note": "Cutting table1", "bld": "B", "status": "ok", "px": 0.34751186353238334, "py": 0.9734902478034154}, {"id": "1774594419417", "type": "cam", "name": "CCTV A-19", "note": "In front of the Motorcycle Roof, Building A", "bld": "A", "status": "ok", "px": 0.9261516977821973, "py": 0.9677749250507706, "code": "CCTV A-19"}, {"id": "1774594442177", "type": "cam", "name": "CCTV A-16", "note": "Building A, near WC", "bld": "A", "status": "ok", "px": 0.5242582357740038, "py": 0.8436741248536781, "code": "CCTV A-16"}, {"id": "1774594451049", "type": "cam", "name": "CCTV A-03", "note": "Container Loading Area, Building A", "bld": "A", "status": "ok", "px": 0.05880615197625039, "py": 0.8692944846234896, "code": "CCTV A-03"}, {"id": "1774594462463", "type": "cam", "name": "CCTV A-04", "note": "Behind the Office", "bld": "A", "status": "ok", "px": 0.966099818683335, "py": 0.8320033525849007, "code": "CCTV A-04"}, {"id": "1774594484151", "type": "cam", "name": "CCTV A-08", "note": "In front of the Machine Room", "bld": "A", "status": "ok", "px": 0.8817349124127112, "py": 0.11595456035086345, "code": "CCTV A-08"}, {"id": "1774594507245", "type": "cam", "name": "CCTV A-22", "note": "Front entrance Motorcycle Parking, Building B", "bld": "B", "status": "ok", "px": 0.07339123895985018, "py": 0.12374743128552147}, {"id": "1774594523340", "type": "cam", "name": "CCTV A-10", "note": "Canteen Area, Bldg A (near WC – 15 Rooms)", "bld": "A", "status": "ok", "px": 0.07315413562739352, "py": 0.0945228970561878, "code": "CCTV A-10"}, {"id": "1774594551037", "type": "cam", "name": "CCTV A-01", "note": "Front entrance of Factory Motorcycle Parking, Building A", "bld": "A", "status": "ok", "px": 0.6705823991501163, "py": 0.8691861592362049, "code": "CCTV A-01"}, {"id": "1774594562621", "type": "cam", "name": "CCTV A-05", "note": "Area behind the Bathrooms", "bld": "A", "status": "ok", "px": 0.6113713095204106, "py": 0.8388878096188339, "code": "CCTV A-05"}, {"id": "1774594572493", "type": "cam", "name": "CCTV B-11", "note": "Canteen Area (near WH ME), Building B", "bld": "B", "status": "ok", "px": 0.9657520841390221, "py": 1.0655978140721554}, {"id": "1774594580163", "type": "cam", "name": "CCTV A-17", "note": "Facing the Generator", "bld": "A", "status": "ok", "px": 1.020437436638554, "py": 0.44038155802861684, "code": "CCTV A-17"}, {"id": "1774594588883", "type": "cam", "name": "CCTV A-14", "note": "Motorcycle Parking Area, Building A", "bld": "A", "status": "ok", "px": 0.9416307440065965, "py": 0.8829198152914635, "code": "CCTV A-14"}, {"id": "1774594601171", "type": "cam", "name": "CCTV A-15", "note": "Front Gate", "bld": "A", "status": "ok", "px": 0.9565928271888665, "py": 0.9676006674562152, "code": "CCTV A-15"}, {"id": "1774594609771", "type": "cam", "name": "CCTV A-09", "note": "Canteen Area, Bldg A (near Finger Scan)", "bld": "A", "status": "ok", "px": 0.8091775448985856, "py": 0.09416703628590609, "code": "CCTV A-09"}, {"id": "1774594628811", "type": "cam", "name": "CCTV A-13", "note": "Middle of Building, Facing Behind Bathroom", "bld": "A", "status": "ok", "px": 0.5322395186561937, "py": 0.11912357366093691, "code": "CCTV A-13"}, {"id": "1774594640689", "type": "cam", "name": "CCTV A-11", "note": "Middle Area (in front of Sewing Line 1)", "bld": "A", "status": "ok", "px": 0.5537891816757927, "py": 0.11692016774285051, "code": "CCTV A-11"}, {"id": "1774594648882", "type": "cam", "name": "CCTV A-06", "note": "Packing Room Area", "bld": "A", "status": "ok", "px": 0.05029138335086414, "py": 0.43879173290937995, "code": "CCTV A-06"}, {"id": "1774594671041", "type": "cam", "name": "CCTV A-07", "note": "In front of the Office Staircase", "bld": "A", "status": "ok", "px": 0.8352142568725595, "py": 0.8419553899158512, "code": "CCTV A-07"}, {"id": "1774594679955", "type": "cam", "name": "CCTV B-12", "note": "Front Fabric Scanner Machine in WH Loading, Bldg B", "bld": "B", "status": "ok", "px": 0.7332250402485976, "py": 0.15855446352027236}, {"id": "1774594703855", "type": "cam", "name": "CCTV A-02", "note": "Finished Goods Area, Building A", "bld": "A", "status": "ok", "px": 0.19059135667409724, "py": 0.8394297821237687, "code": "CCTV A-02"}, {"id": "1774597212379", "type": "cam", "name": "CCTV A-20", "note": "No Video Available (Finger scan building A)", "bld": "A", "status": "fault", "px": 0.7586352372747377, "py": 0.8457869634340222, "code": "CCTV A-20"}, {"id": "1774597233435", "type": "cam", "name": "CCTV A-21", "note": "No Video Available (Finger scan building A)", "bld": "A", "status": "fault", "px": 0.37437717046655594, "py": 0.8457869634340222, "code": "CCTV A-21"}, {"id": "1774597251659", "type": "cam", "name": "CCTV A-18", "note": "Near the Container House (Outside)", "bld": "A", "status": "ok", "px": 0.02601134066792957, "py": 0.8394276629570747, "code": "CCTV A-18"}, {"id": "1774597287386", "type": "cam", "name": "CCTV A-12", "note": "Near Packing  (No Video Available)", "bld": "A", "status": "fault", "px": 0.17802552094369378, "py": 0.13036565977742448, "code": "CCTV A-12"}, {"id": "1774597645312", "type": "cam", "name": "CCTV B-01", "note": "Warehouse Trim, Building B", "bld": "B", "status": "ok", "px": 0.1203000794912559, "py": 0.1875993640699523, "code": "CCTV B-01"}, {"id": "1774597706626", "type": "cam", "name": "CCTV B-02", "note": "Canteen Area, Building B", "bld": "B", "status": "ok", "px": 0.014697921190777266, "py": 1.039209163545071, "code": "CCTV B-02"}, {"id": "1774598514129", "type": "cam", "name": "CCTV B-03", "note": "Cutting Area, Building B", "bld": "B", "status": "ok", "px": 0.7085601776530861, "py": 0.9442520838183761, "code": "CCTV B-03"}, {"id": "1774598544949", "type": "cam", "name": "CCTV B-04", "note": "Behind the Loading (Chemical Room)", "bld": "B", "status": "ok", "px": 1.0040498722466347, "py": 0.16191039809080165, "code": "CCTV B-04"}, {"id": "1774598593570", "type": "cam", "name": "CCTV B-05", "note": "Finger Scan Machine, Building B", "bld": "B", "status": "ok", "px": 0.21062425631378429, "py": 0.17280146564153356, "code": "CCTV B-05"}, {"id": "1774598637688", "type": "cam", "name": "CCTV B-06", "note": "Behind the Trim (Stair near WC 15 Rooms)", "bld": "B", "status": "ok", "px": 0.02964959907136866, "py": 0.18732288904250943, "code": "CCTV B-06"}, {"id": "1774598687710", "type": "cam", "name": "CCTV B-07", "note": "Container Loading Area, Building B", "bld": "B", "status": "ok", "px": 0.9580393661680546, "py": 0.13831308506421588, "code": "CCTV B-07"}, {"id": "1774598721254", "type": "cam", "name": "CCTV B-08", "note": "front Table Cutting Inspection, Building B", "bld": "B", "status": "ok", "px": 0.3932017171834839, "py": 0.9700442803564613, "code": "CCTV B-08"}, {"id": "1774598796619", "type": "cam", "name": "CCTV B-09", "note": "WH Trim Behind, Building B", "bld": "B", "status": "ok", "px": 0.05492721581875987, "py": 0.5675675675675677, "code": "CCTV B-09"}, {"id": "1774599115706", "type": "cam", "name": "CCTV B-13", "note": "Front WH Loading, Building B", "bld": "B", "status": "ok", "px": 0.977140692337539, "py": 0.17996454285275346}, {"id": "1774936124184", "type": "cam", "name": "CCTV B-10", "note": "Middle of Building (Cutting & Service Line), Bldg B", "bld": "B", "status": "ok", "px": 0.375851031940729, "py": 0.972172884119292, "code": "CCTV B-10"}, {"id": "1774936151371", "type": "cam", "name": "CCTV B-14", "note": "Inside WH Loading, Building B", "bld": "B", "status": "ok", "px": 0.8674347497698255, "py": 0.9452162252415599}, {"id": "1774936165826", "type": "cam", "name": "CCTV B-15", "note": "In Cutting Behind, Building B", "bld": "B", "status": "ok", "px": 0.34507526828298885, "py": 0.16852146263910972}];
 var devs=[],layers={cam:true,fire:true,esf:true},filt='all';
+// CCTV 異常覆蓋層：由 security.html 雲端同步而來，code 格式 "A-01"
+var _cctvFaults = {}; // {code: {name, note}} e.g. {"A-01":{name:"CCTV A-01",note:"遮蔽"}}
 var addM=false,plcId=null,pPos=null,sTv='ext',detId=null,curBld='A',lang='zh';
 var tx=0,ty=0,sc=1,iw=1556,ih=1092;
 
@@ -1020,13 +1047,57 @@ function init(){
   catch(e){devs=SEED.map(function(s){return Object.assign({},s);});}
   buildPills();
   var img=gEl('mimg');
-  img.onload=function(){iw=img.naturalWidth;ih=img.naturalHeight;fit();renderMk();};
+  img.onload=function(){iw=img.naturalWidth;ih=img.naturalHeight;fit();renderMk();
+    // ── URL hash deep-link：Telegram 按鈕點過來時自動高亮設備 ──
+    checkHashHighlight();
+  };
   img.src=MAPS.A;
   applyLang();renderList();updBdg();
   attachEv();
   initMapPreviews();
   initLogMonth();
   startCloudAutoSync();
+}
+
+/**
+ * checkHashHighlight — 讀取 URL hash (#deviceId)，切換到該設備所在樓層，
+ * 閃爍高亮並自動打開詳細資料面板。
+ * Telegram「查看地圖」按鈕點過來時觸發。
+ */
+function checkHashHighlight(){
+  var hash = decodeURIComponent(window.location.hash.replace('#',''));
+  if(!hash) return;
+  var dev = devs.find(function(d){ return d.id===hash||d.name===hash; });
+  if(!dev||dev.px==null) return;
+
+  // 切到正確樓層
+  if(dev.bld && dev.bld!==curBld){
+    setBld(dev.bld);
+  }
+
+  // 短暫延遲讓地圖渲染完再捲動
+  setTimeout(function(){
+    // 找到對應 marker 元素並閃爍
+    var ml=gEl('mkl'); if(!ml) return;
+    var els=ml.querySelectorAll('.mk');
+    els.forEach(function(el){
+      var left=parseFloat(el.style.left), top=parseFloat(el.style.top);
+      var px=dev.px*iw, py=dev.py*ih;
+      if(Math.abs(left-px)<4 && Math.abs(top-py)<4){
+        el.classList.add('hash-highlight');
+        setTimeout(function(){ el.classList.remove('hash-highlight'); }, 4000);
+        // 捲動視窗讓該設備置中
+        var vp=gEl('mvp');
+        if(vp){
+          var scale=parseFloat(gEl('mc').style.transform.replace(/[^0-9.]/g,''))||1;
+          vp.scrollLeft = px*scale - vp.clientWidth/2;
+          vp.scrollTop  = py*scale - vp.clientHeight/2;
+        }
+      }
+    });
+    // 打開詳細資料面板
+    opnDet(dev.id);
+  }, 500);
 }
 
 function attachEv(){
@@ -1108,7 +1179,6 @@ function renderMk(){
     if(lr==='esf'&&!layers.esf)return;
     var px,py;
     if(curBld==='OV'){
-      // Show all devices (A, B, SAT) mapped to overview coordinates
       var op=ovPos(d);if(!op)return;
       px=op.x*OV_W;py=op.y*OV_H;
     } else {
@@ -1119,6 +1189,22 @@ function renderMk(){
     el.className='mk'+(d.status==='fault'?' fpulse fault-mk':d.status==='warn'?' warn-mk':'');
     el.style.left=px+'px';el.style.top=py+'px';
     el.innerHTML=(IC[d.type]?IC[d.type](d.status):'?')+'<div class="mkl">'+d.name+'</div>';
+
+    // ── CCTV 異常覆蓋徽章（從 security.html 同步的資料）──
+    if(d.type==='cam'){
+      var camCode=(d.code||d.name||'').replace(/^CCTV\s*/i,'').trim();
+      var faultInfo=_cctvFaults[camCode];
+      if(faultInfo){
+        var badge=document.createElement('div');
+        badge.className='cctv-alert-badge'+(faultInfo.note?' has-note':'');
+        badge.title='CCTV 異常（security.html）\n'+(faultInfo.note||'未填原因');
+        badge.textContent='!';
+        el.appendChild(badge);
+        // 強制加 fpulse（即使設備本身狀態是 ok）
+        if(!el.classList.contains('fpulse')) el.classList.add('fpulse');
+      }
+    }
+
     el.addEventListener('click',function(ev){ev.stopPropagation();opnDet(d.id);});
     el.addEventListener('touchend',function(ev){ev.stopPropagation();ev.preventDefault();opnDet(d.id);});
     ml.appendChild(el);
@@ -1453,8 +1539,8 @@ function setBadge(msg, color){
   if(b){b.textContent=msg; b.style.color=color||'var(--dim)';}
 }
 
-function getGasUrl(){ return localStorage.getItem('vrt_gas_url')||''; }
-function getGasSecret(){ return localStorage.getItem('vrt_gas_secret')||''; }
+function getGasUrl(){ return localStorage.getItem('vrt_gas_url')||'https://script.google.com/macros/s/AKfycbxxVMFewxyOcN156IgLKfqQ5KhbP4WLoSAeb_Q10HIqqA968QGPIwGx4yKI8JSo5H0V/exec'; }
+function getGasSecret(){ return localStorage.getItem('vrt_gas_secret')||'vrt2026security'; }
 
 async function cloudSync(silent){
   var url = getGasUrl();
@@ -1463,9 +1549,7 @@ async function cloudSync(silent){
   _cloudSyncing = true;
   setBadge('☁ 同步中... Syncing... ផ្ទុកឡើង...', '#0066cc');
   try{
-    var resp = await fetch(url+'?action=getMapData&secret='+encodeURIComponent(getGasSecret()),{
-      method:'GET', headers:{'Accept':'application/json'}
-    });
+    var resp = await fetch(url+'?action=getMapData&secret='+encodeURIComponent(getGasSecret()));
     var json = await resp.json();
     if(json.ok && json.devices && json.devices.length){
       // Merge: cloud data takes priority, preserve local positions if cloud has none
@@ -1502,6 +1586,25 @@ async function cloudSync(silent){
       _lastSyncTs = json.ts||'';
       setBadge('✅ '+(_lastSyncTs?_lastSyncTs.substring(11,16):'OK'), '#1a7a3a');
       if(!silent) toast('☁ 雲端同步完成 Cloud synced ផ្ទុកឡើងជោគជ័យ');
+
+      // ── 順帶抓今日 CCTV 異常（來自 security.html）──
+      try{
+        var cctvResp = await fetch(url+'?action=getCctvStatus&secret='+encodeURIComponent(getGasSecret()));
+        var cctvJson = await cctvResp.json();
+        if(cctvJson.ok){
+          _cctvFaults = {};
+          (cctvJson.faults||[]).forEach(function(f){ _cctvFaults[f.code]=f; });
+          var faultCount = Object.keys(_cctvFaults).length;
+          var bar = gEl('cctv-fault-bar');
+          var cnt = gEl('cctv-fault-count');
+          if(bar && cnt){
+            cnt.textContent = faultCount;
+            bar.className = 'cctv-fault-bar'+(faultCount>0?' visible':'');
+          }
+          renderMk(); // 重繪以顯示/隱藏徽章
+        }
+      }catch(e){ console.warn('getCctvStatus error:',e); }
+
     } else {
       setBadge('⚠ ' + (json.error||'no data'), '#e67700');
     }
@@ -1510,6 +1613,16 @@ async function cloudSync(silent){
     console.warn('cloudSync error:',e);
   }
   _cloudSyncing=false;
+}
+
+function showCctvFaultList(){
+  var faults = Object.values(_cctvFaults);
+  if(!faults.length){toast('今日無 CCTV 異常記錄');return;}
+  var msg = '📷 今日 CCTV 異常（'+faults.length+' 台）\n'+Array(30).fill('─').join('')+'\n';
+  faults.forEach(function(f){
+    msg += '• '+f.code+' '+f.name+(f.note?'\n  原因：'+f.note:'')+'\n';
+  });
+  alert(msg);
 }
 
 async function cloudPushDevice(dev){

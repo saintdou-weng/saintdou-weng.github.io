@@ -775,15 +775,15 @@ function switchMain(t){
     document.getElementById('page-'+x).classList.toggle('on',x===t);
     document.getElementById('tab-'+x).classList.toggle('on',x===t);
   });
-  if(t==='settings'){ renderSettingsTable(); syncCamerasFromCloud(); }
+  if(t==='settings'){ renderSettingsTable(); } // 不自動從雲端同步，避免覆蓋本地設定
 }
 
 // ═══════════════════════════════════════════════════════
-// DATE HELPERS
+// DATE HELPERS（本地時區，避免 UTC+7 偏移）
 // ═══════════════════════════════════════════════════════
-const todayStr=()=>new Date().toISOString().slice(0,10);
+const fmtDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const todayStr=()=>fmtDate(new Date());
 const parseDate=s=>{const[y,m,d]=s.split('-');return new Date(+y,+m-1,+d);};
-const fmtDate=d=>d.toISOString().slice(0,10);
 const addDays=(s,n)=>{const d=parseDate(s);d.setDate(d.getDate()+n);return fmtDate(d);};
 const getWeekDays=s=>{const d=parseDate(s),day=d.getDay()||7,mon=new Date(d);
   mon.setDate(d.getDate()-(day-1));return Array.from({length:7},(_,i)=>{const x=new Date(mon);x.setDate(mon.getDate()+i);return fmtDate(x);});};

@@ -1431,7 +1431,25 @@ function parsePatrolFile(file){
             hdr=raw[i];hdrIdx=i;break;
           }
         }
-        if(!hdr) return;
+        // Headerless fallback: old format per-day sheets have no header
+        // Detect: if first cell of first row is a date/number (serial), use fixed columns
+        // Fixed: 0=PatrolTime, 1=ReaderNum, 2=Person, 3=Checkpoint, 4=Event, 5=ChipID
+        if(!hdr){
+          const firstCell=raw[0]&&raw[0][0];
+          const isDateLike=firstCell instanceof Date||(typeof firstCell==='number'&&firstCell>40000);
+          if(!isDateLike) return; // truly unreadable
+          const recs=[];
+          for(let i=0;i<raw.length;i++){
+            const r=raw[i]; if(!r||!r[0]) continue;
+            const tRaw=r[0];
+            let t=tRaw instanceof Date?tRaw:typeof tRaw==='number'?new Date(Math.round((tRaw-25569)*86400*1000)):new Date(tRaw);
+            if(isNaN(t.getTime())) continue;
+            recs.push({time:t,person:String(r[2]||'Unknown').trim(),
+              event:String(r[4]||'').trim(),chip:String(r[5]||'').trim()});
+          }
+          if(recs.length) days[name.padStart(2,'0')]=recs;
+          return;
+        }
         const ci={
           time:hdr.findIndex(h=>h&&String(h).toLowerCase().includes('patrol time')),
           person:hdr.findIndex(h=>h&&String(h).toLowerCase().includes('person')),
@@ -2160,20 +2178,31 @@ function buildPatrolSummaryText(){
   const day0=days[0];
   const s=patrolData.dayStats[day0];
   if(!s) return '（無可用資料）';
-  const n=s.shifts?.night, dy=s.shifts?.day;
+  // 整月彙總
+  const allDays2=Object.keys(patrolData.dayStats).sort();
+  let mRounds=0,mScans=0,mNight={rounds:0,scans:0},mDay={rounds:0,scans:0};
+  const mPersons={};
+  allDays2.forEach(d=>{
+    const sd=patrolData.dayStats[d]; if(!sd) return;
+    mRounds+=sd.totalRounds||0; mScans+=sd.totalScans||0;
+    Object.entries(sd.personRounds||{}).forEach(([nm,r])=>mPersons[nm]=(mPersons[nm]||0)+r);
+    if(sd.shifts?.night){mNight.rounds+=sd.shifts.night.rounds||0;mNight.scans+=sd.shifts.night.scans||0;}
+    if(sd.shifts?.day){mDay.rounds+=sd.shifts.day.rounds||0;mDay.scans+=sd.shifts.day.scans||0;}
+  });
+  const mPersonCount=Object.keys(mPersons).length;
   const by=(document.getElementById('share-submitter')?.value||'').trim();
   const now=new Date(); const hm=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  let txt=`👮 VRT Patrol Report\n📅 ${patrolData.yearMonth}/${day0}  ⏰ ${hm}${by?' 👤 '+by:''}\n`;
+  let txt=`👮 VRT Patrol Report\n📅 ${patrolData.yearMonth}  ⏰ ${hm}${by?' 👤 '+by:''}\n`;
   txt+=`${'─'.repeat(26)}\n`;
-  txt+=`🔄 總巡邏次: ${s.totalRounds}   👥 人員: ${s.persons.length}人\n`;
-  txt+=`📍 總掃點: ${s.totalScans}\n`;
-  if(n){txt+=`${'─'.repeat(26)}\n🌙 夜班: ${n.from}–${n.to}\n   ×${n.rounds} rounds / ${n.scans} scans\n`;}
-  if(dy){txt+=`☀ 日班: ${dy.from}–${dy.to}\n   ×${dy.rounds} rounds / ${dy.scans} scans\n`;}
-  if(s.maxHr!==null&&s.maxHr!==undefined){
-    txt+=`${'─'.repeat(26)}\n🔴 最多時段: ${String(s.maxHr).padStart(2,'0')}:00 (${s.hourly[s.maxHr]}次)\n`;
-  }
-  if(s.minHr!==null&&s.minHr!==undefined){
-    txt+=`🟡 最少時段: ${String(s.minHr).padStart(2,'0')}:00 (${s.hourly[s.minHr]}次)\n`;
+  txt+=`📋 天數: ${allDays2.length}天\n`;
+  txt+=`🔄 總巡邏次: ${mRounds}   👥 人員: ${mPersonCount}人\n`;
+  txt+=`📍 總掃點: ${mScans}\n`;
+  if(mNight.rounds){txt+=`${'─'.repeat(26)}\n🌙 夜班: ×${mNight.rounds} rounds / ${mNight.scans} scans\n`;}
+  if(mDay.rounds){txt+=`☀ 日班: ×${mDay.rounds} rounds / ${mDay.scans} scans\n`;}
+  const topPersons=Object.entries(mPersons).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  if(topPersons.length){
+    txt+=`${'─'.repeat(26)}\n👤 人員巡邏次數:\n`;
+    topPersons.forEach(([nm,r])=>txt+=`  • ${nm}: ${r}次\n`);
   }
   txt+=`${'─'.repeat(26)}\n🔗 ${location.href}`;
   return txt;
@@ -2326,45 +2355,42 @@ window.addEventListener('DOMContentLoaded',()=>{
   if(!localCams || localCams === '[]') {
     setTimeout(()=>syncCamerasFromCloud(), 2000);
   }
-  // 自動從雲端載入最近一個月的巡邏記錄（免得每次都要手動查詢）
+  // 自動從雲端載入最近一個月的巡邏記錄
   if(getGasUrl()){
     setTimeout(async function(){
       try{
         const url=getGasUrl();
-        const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+        const r1=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
           body:JSON.stringify({type:'listPatrol',secret:getSecret()})});
-        const json=await res.json();
-        if(json.ok && json.months && json.months.length){
-          // 取最近一個月自動載入
-          const latestYm=json.months[0];
-          const res2=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
-            body:JSON.stringify({type:'getPatrol',yearMonth:latestYm,secret:getSecret()})});
-          const json2=await res2.json();
-          if(json2.ok && json2.data){
-            const d=json2.data;
-            patrolData={
-              fileName:d.fileName||'（雲端載入）',
-              yearMonth:d.yearMonth||latestYm,
-              days:{},
-              dayStats:d.dayStats||{}
-            };
-            Object.entries(patrolData.dayStats).forEach(([,s])=>{
-              if(!s.recs) s.recs=[];
-              if(!s.shifts) s.shifts={night:null,day:null};
-            });
-            const days=Object.keys(patrolData.dayStats).sort();
-            if(days.length){
-              document.getElementById('patrol-upload-card').style.display='none';
-              document.getElementById('patrol-data-view').style.display='';
-              document.getElementById('patrol-file-label').textContent=
-                `☁ ${d.fileName||latestYm}  (${latestYm})  — 雲端自動載入`;
-              document.getElementById('patrol-date-inp').value=latestYm+'-'+days[0];
-              renderPatrol();
-            }
-          }
-        }
+        const j1=await r1.json();
+        if(!j1.ok||!j1.months||!j1.months.length) return;
+        const latestYm=j1.months[0]; // 最新月份
+        const r2=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+          body:JSON.stringify({type:'getPatrol',yearMonth:latestYm,secret:getSecret()})});
+        const j2=await r2.json();
+        if(!j2.ok||!j2.data) return;
+        const d=j2.data;
+        const dayStats=d.dayStats||{};
+        const days=Object.keys(dayStats).sort();
+        if(!days.length) return;
+        // 補齊缺失欄位
+        Object.values(dayStats).forEach(s=>{
+          if(!s.recs) s.recs=[];
+          if(!s.shifts) s.shifts={night:null,day:null};
+          if(!s.personRounds) s.personRounds={};
+          if(!s.persons) s.persons=[];
+        });
+        patrolData={fileName:d.fileName||'（雲端載入）',yearMonth:d.yearMonth||latestYm,days:{},dayStats};
+        // 更新介面
+        document.getElementById('patrol-upload-card').style.display='none';
+        document.getElementById('patrol-data-view').style.display='';
+        document.getElementById('patrol-file-label').textContent=
+          '☁ '+(d.fileName||latestYm)+'  ('+latestYm+')  — 雲端自動載入';
+        document.getElementById('patrol-date-inp').value=latestYm+'-'+days[0];
+        setPatrolPeriod('month'); // 預設月視圖看整月
+        renderPatrol();
       }catch(e){ console.warn('auto patrol load:',e); }
-    }, 3000);
+    }, 3500);
   }
   setLang('zh');
 });

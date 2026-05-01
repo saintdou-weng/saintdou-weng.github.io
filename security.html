@@ -362,7 +362,9 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
             <div class="pbtn" onclick="setPatrolPeriod('month')" id="pp-month"><span data-zh="月" data-en="Month">月</span></div>
           </div>
           <div class="dn" id="patrol-date-nav" style="display:flex;align-items:center;gap:5px">
+            <button class="btn btn-ghost btn-sm" onclick="patrolNav(-1)">◀</button>
             <input type="date" id="patrol-date-inp" onchange="renderPatrol()"/>
+            <button class="btn btn-ghost btn-sm" onclick="patrolNav(1)">▶</button>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -1530,6 +1532,34 @@ function buildPatrolSummary(){
 }
 
 function reparsePatrol(){buildPatrolSummary();renderPatrol();}
+
+// ◀ ▶ 巡邏日期/週導航
+function patrolNav(dir){
+  if(!patrolData) return;
+  const inp = document.getElementById('patrol-date-inp');
+  const allDays = Object.keys(patrolData.dayStats).sort(); // ['01','02',...,'30']
+  if(!allDays.length) return;
+
+  if(patrolPeriod==='day'){
+    const cur = (inp.value||'').slice(8,10)||allDays[0];
+    const idx = allDays.indexOf(cur.padStart(2,'0'));
+    const next = allDays[Math.max(0, Math.min(allDays.length-1, idx+dir))];
+    inp.value = patrolData.yearMonth+'-'+next;
+    renderPatrol();
+  } else if(patrolPeriod==='week'){
+    // 以7天為單位移動
+    const cur = inp.value || (patrolData.yearMonth+'-'+allDays[0]);
+    const d = parseDate(cur);
+    d.setDate(d.getDate() + dir*7);
+    // clamp to data range
+    const firstDate = parseDate(patrolData.yearMonth+'-'+allDays[0]);
+    const lastDate  = parseDate(patrolData.yearMonth+'-'+allDays[allDays.length-1]);
+    if(d<firstDate) d.setTime(firstDate.getTime());
+    if(d>lastDate)  d.setTime(lastDate.getTime());
+    inp.value = fmtDate(d);
+    renderPatrol();
+  }
+}
 
 function setPatrolPeriod(p){
   patrolPeriod=p;

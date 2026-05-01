@@ -1564,7 +1564,8 @@ function patrolNav(dir){
 function setPatrolPeriod(p){
   patrolPeriod=p;
   ['day','week','month'].forEach(x=>document.getElementById('pp-'+x).classList.toggle('on',x===p));
-  document.getElementById('patrol-date-nav').style.display=p==='month'?'none':'';
+  var nav=document.getElementById('patrol-date-nav');
+  if(nav) nav.style.display=p==='month'?'none':'flex';
   renderPatrol();
 }
 
@@ -2205,17 +2206,32 @@ function getCctvPayload(){
 
 function getPatrolPayload(){
   if(!patrolData) return null;
-  const days=getPatrolDays(); if(!days.length) return null;
-  const d=days[0], s=patrolData.dayStats[d];
-  if(!s) return null;
-  const n=s.shifts?.night, dy=s.shifts?.day;
+  // 整月摘要：彙總所有天數資料
+  const allDays=Object.keys(patrolData.dayStats).sort();
+  if(!allDays.length) return null;
   const now=new Date();
-  const personList=Object.entries(s.personRounds).map(([name,rounds])=>({name,rounds}))
+  // 合計整月
+  let totalRounds=0,totalScans=0;
+  const personMap={};
+  const nightTotal={rounds:0,scans:0},dayTotal={rounds:0,scans:0};
+  allDays.forEach(d=>{
+    const s=patrolData.dayStats[d]; if(!s) return;
+    totalRounds+=s.totalRounds||0;
+    totalScans+=s.totalScans||0;
+    Object.entries(s.personRounds||{}).forEach(([name,r])=>{personMap[name]=(personMap[name]||0)+r;});
+    if(s.shifts?.night){nightTotal.rounds+=s.shifts.night.rounds||0;nightTotal.scans+=s.shifts.night.scans||0;}
+    if(s.shifts?.day){dayTotal.rounds+=s.shifts.day.rounds||0;dayTotal.scans+=s.shifts.day.scans||0;}
+  });
+  const personList=Object.entries(personMap).map(([name,rounds])=>({name,rounds}))
     .sort((a,b)=>b.rounds-a.rounds);
-  return{type:'patrol',date:`${patrolData.yearMonth}/${d}`,
-    totalRounds:s.totalRounds,persons:s.persons.length,totalScans:s.totalScans,
-    night:n,day:dy,peakHour:s.maxHr,peakCount:s.maxHr!==null?s.hourly[s.maxHr]:0,
-    minHour:s.minHr,minCount:s.minHr!==null?s.hourly[s.minHr]:0,
+  const uniquePersons=Object.keys(personMap).length;
+  return{type:'patrol',
+    date:patrolData.yearMonth,
+    yearMonth:patrolData.yearMonth,
+    days:allDays.length,
+    totalRounds,persons:uniquePersons,totalScans,
+    night:nightTotal.rounds?nightTotal:null,
+    day:dayTotal.rounds?dayTotal:null,
     personList,anomalies:[],
     submittedBy:(document.getElementById('share-submitter')?.value||'').trim(),
     submitTime:`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,
@@ -2309,6 +2325,46 @@ window.addEventListener('DOMContentLoaded',()=>{
   const localCams = localStorage.getItem('vrt_cameras');
   if(!localCams || localCams === '[]') {
     setTimeout(()=>syncCamerasFromCloud(), 2000);
+  }
+  // 自動從雲端載入最近一個月的巡邏記錄（免得每次都要手動查詢）
+  if(getGasUrl()){
+    setTimeout(async function(){
+      try{
+        const url=getGasUrl();
+        const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+          body:JSON.stringify({type:'listPatrol',secret:getSecret()})});
+        const json=await res.json();
+        if(json.ok && json.months && json.months.length){
+          // 取最近一個月自動載入
+          const latestYm=json.months[0];
+          const res2=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+            body:JSON.stringify({type:'getPatrol',yearMonth:latestYm,secret:getSecret()})});
+          const json2=await res2.json();
+          if(json2.ok && json2.data){
+            const d=json2.data;
+            patrolData={
+              fileName:d.fileName||'（雲端載入）',
+              yearMonth:d.yearMonth||latestYm,
+              days:{},
+              dayStats:d.dayStats||{}
+            };
+            Object.entries(patrolData.dayStats).forEach(([,s])=>{
+              if(!s.recs) s.recs=[];
+              if(!s.shifts) s.shifts={night:null,day:null};
+            });
+            const days=Object.keys(patrolData.dayStats).sort();
+            if(days.length){
+              document.getElementById('patrol-upload-card').style.display='none';
+              document.getElementById('patrol-data-view').style.display='';
+              document.getElementById('patrol-file-label').textContent=
+                `☁ ${d.fileName||latestYm}  (${latestYm})  — 雲端自動載入`;
+              document.getElementById('patrol-date-inp').value=latestYm+'-'+days[0];
+              renderPatrol();
+            }
+          }
+        }
+      }catch(e){ console.warn('auto patrol load:',e); }
+    }, 3000);
   }
   setLang('zh');
 });

@@ -1595,15 +1595,23 @@ function importPatrolXL(input){
         for(let i=startRow;i<raw.length;i++){
           const r=raw[i]; if(!r) continue;
           const tRaw=r[ci.time]; if(!tRaw) continue;
-          let t=tRaw instanceof Date?new Date(tRaw.getTime())
-            :typeof tRaw==='number'&&tRaw>40000?new Date(Math.round((tRaw-25569)*86400*1000))
-            :new Date(String(tRaw));
+          // 解析日期：統一轉成本地時間（cellDates:true 給的 Date 是 UTC，要補時區偏移）
+          let t;
+          if(tRaw instanceof Date){
+            // UTC Date → 加本地時區偏移讓 getFullYear/getMonth/getDate 讀到正確本地日期
+            const off=tRaw.getTimezoneOffset()*60000; // 負值=東時區
+            t=new Date(tRaw.getTime()-off);
+          } else if(typeof tRaw==='number'&&tRaw>40000){
+            t=new Date(Math.round((tRaw-25569)*86400*1000));
+          } else {
+            t=new Date(String(tRaw));
+          }
           if(isNaN(t.getTime())) continue;
           const person=String(r[ci.person]||'Unknown').trim();
           const event=String(r[ci.event]||'').trim();
           const chip=String(r[ci.chip]||'').trim();
-          // 分頁名是日期就用分頁名，否則從時間取
           const day=isDay?name.padStart(2,'0'):String(t.getDate()).padStart(2,'0');
+          t._localY=t.getFullYear(); t._localM=t.getMonth()+1; t._localD=t.getDate();
           const key=day+'|'+person+'|'+chip+'|'+t.toISOString().slice(11,16);
           if(existKeys.has(key)){skipped++;continue;}
           existKeys.add(key);
@@ -1616,7 +1624,10 @@ function importPatrolXL(input){
       if(!patrolData){
         const fd=Object.keys(newDays).sort()[0];
         const s=newDays[fd][0];
-        const ym=s.time.getFullYear()+'-'+String(s.time.getMonth()+1).padStart(2,'0');
+        // 優先用本地時區欄位，fallback 到 getFullYear/getMonth（可能有 UTC 偏移）
+        const _sy=s.time._localY||s.time.getFullYear();
+        const _sm=s.time._localM||(s.time.getMonth()+1);
+        const ym=_sy+'-'+String(_sm).padStart(2,'0');
         patrolData={fileName:file.name,yearMonth:ym,days:newDays,raw:newDays};
       } else {
         Object.entries(newDays).forEach(([d,recs])=>{

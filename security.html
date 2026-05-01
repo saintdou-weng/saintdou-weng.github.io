@@ -261,7 +261,9 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
         <button class="btn btn-ghost btn-sm" onclick="markAllOk()">✓ <span data-zh="全正常" data-en="All OK">全正常</span></button>
         <button class="btn btn-p btn-sm" onclick="saveCctvDay()">💾 <span data-zh="儲存" data-en="Save">儲存</span></button>
         <button class="btn btn-ghost btn-sm" onclick="copyCctvReport()">📋 <span data-zh="複製報告" data-en="Copy Report">複製報告</span></button>
-        <button class="btn btn-ghost btn-sm" onclick="syncFromCloud(cctvDate)">⟳ <span data-zh="同步" data-en="Sync">同步</span></button>      </div>
+        <button class="btn btn-ghost btn-sm" onclick="syncFromCloud(cctvDate)">⟳ <span data-zh="同步" data-en="Sync">同步</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="clearCctvLocalData()" style="color:var(--red)" title="清除本地 CCTV 資料並從雲端還原">🗑 <span data-zh="清除還原" data-en="Clear+Restore">清除還原</span></button>
+      </div>
     </div>
   </div>
 
@@ -339,10 +341,16 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
           <div class="pbtn" onclick="setPatrolPeriod('week')" id="pp-week"><span data-zh="週" data-en="Week">週</span></div>
           <div class="pbtn" onclick="setPatrolPeriod('month')" id="pp-month"><span data-zh="月" data-en="Month">月</span></div>
         </div>
+        <!-- 日/週：日期選擇器；月：月份前後鍵 -->
         <div class="dn" id="patrol-date-nav" style="display:flex;align-items:center;gap:5px">
           <button class="btn btn-ghost btn-sm" onclick="patrolNav(-1)">◀</button>
           <input type="date" id="patrol-date-inp" onchange="renderPatrol()"/>
           <button class="btn btn-ghost btn-sm" onclick="patrolNav(1)">▶</button>
+        </div>
+        <div id="patrol-month-nav" style="display:none;align-items:center;gap:5px">
+          <button class="btn btn-ghost btn-sm" onclick="patrolMonthNav(-1)">◀</button>
+          <span id="patrol-month-label" style="font-size:12px;font-weight:600;color:var(--blue);min-width:60px;text-align:center"></span>
+          <button class="btn btn-ghost btn-sm" onclick="patrolMonthNav(1)">▶</button>
         </div>
         <label style="font-size:11px;color:var(--text2);display:flex;align-items:center;gap:4px">
           <span data-zh="間隔" data-en="Interval">間隔</span>
@@ -996,6 +1004,24 @@ function setCctvPeriod(p){
   renderCctv();
 }
 function goCctvToday(){cctvDate=todayStr();_lastLoadedDate=null;document.getElementById('cctv-date-inp').value=cctvDate;renderCctv();}
+
+// 清除本地所有 CCTV 資料並從雲端重新拉取（用於匯入錯誤後還原）
+function clearCctvLocalData(){
+  if(!confirm('確定清除本地所有 CCTV 巡查資料？\n將從雲端重新拉取今日記錄。\n（此操作不影響雲端資料）')) return;
+  // 清除所有 cctv_ 開頭的 localStorage
+  const toRemove=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith('cctv_')) toRemove.push(k);
+  }
+  toRemove.forEach(k=>localStorage.removeItem(k));
+  cctvToday={}; _lastLoadedDate=null;
+  toast(`✓ 已清除 ${toRemove.length} 天本地記錄，從雲端同步中…`);
+  // 強制重新從雲端拉
+  syncFromCloud._lastTs={};
+  syncFromCloud(cctvDate);
+  renderCctv();
+}
 function cctvNav(n){
   if(cctvPeriod==='day') cctvDate=addDays(cctvDate,n);
   else if(cctvPeriod==='week') cctvDate=addDays(cctvDate,n*7);
@@ -1573,7 +1599,7 @@ function parsePatrolFile(file){
       if(!Object.keys(days).length){toast('⚠ 無法讀取資料');return;}
       const firstDay=Object.keys(days).sort()[0];
       const sample=days[firstDay][0];
-      const ym=`${sample.time.getFullYear()}-${String(sample.time.getMonth()+1).padStart(2,'0')}`;
+      const ym=(String(sample.time.getFullYear())+'-'+String(sample.time.getMonth()+1).padStart(2,'0')).slice(0,7);
       patrolData={fileName:file.name,yearMonth:ym,days,raw:days};
       buildPatrolSummary();
       savePatrolCache(); // 存本地快取
@@ -1686,9 +1712,10 @@ function importPatrolXL(input){
         const fd=Object.keys(newDays).sort()[0];
         const s=newDays[fd][0];
         // 優先用本地時區欄位，fallback 到 getFullYear/getMonth（可能有 UTC 偏移）
+        // Always sanitize to YYYY-MM format
         const _sy=s.time._localY||s.time.getFullYear();
         const _sm=s.time._localM||(s.time.getMonth()+1);
-        const ym=_sy+'-'+String(_sm).padStart(2,'0');
+        const ym=String(_sy)+'-'+String(_sm).padStart(2,'0');
         patrolData={fileName:file.name,yearMonth:ym,days:newDays,raw:newDays};
       } else {
         Object.entries(newDays).forEach(([d,recs])=>{
@@ -1806,8 +1833,32 @@ function setPatrolPeriod(p){
   patrolPeriod=p;
   ['day','week','month'].forEach(x=>document.getElementById('pp-'+x).classList.toggle('on',x===p));
   var nav=document.getElementById('patrol-date-nav');
-  if(nav) nav.style.display=p==='month'?'none':'flex';
+  var mnav=document.getElementById('patrol-month-nav');
+  if(nav)  nav.style.display=p==='month'?'none':'flex';
+  if(mnav) mnav.style.display=p==='month'?'flex':'none';
+  // 更新月份標籤
+  if(p==='month'&&patrolData){
+    var lbl=document.getElementById('patrol-month-label');
+    if(lbl) lbl.textContent=patrolData.yearMonth||'';
+  }
   renderPatrol();
+}
+
+// 月份前後導航（查詢雲端可用月份）
+var _cloudMonths=[];
+function patrolMonthNav(dir){
+  if(!patrolData) return;
+  // 從雲端月份清單切換
+  if(_cloudMonths.length>0){
+    var idx=_cloudMonths.indexOf(patrolData.yearMonth);
+    var next=_cloudMonths[Math.max(0,Math.min(_cloudMonths.length-1,idx-dir))]; // listPatrol 是降序
+    if(next&&next!==patrolData.yearMonth) loadPatrolFromCloud(next);
+    return;
+  }
+  // 若無雲端清單，自動查詢
+  fetchPatrolCloudList().then(()=>{
+    if(_cloudMonths.length) patrolMonthNav(dir);
+  });
 }
 
 function getPatrolDays(){
@@ -2023,6 +2074,7 @@ async function fetchPatrolCloudList(){
       body:JSON.stringify({type:'listPatrol',secret:getSecret()})});
     const json=await res.json();
     if(json.ok && json.months && json.months.length){
+      _cloudMonths=json.months; // 存起來供月份導航用
       btn.innerHTML=json.months.map(m=>`
         <button class="btn btn-ghost btn-sm" onclick="loadPatrolFromCloud('${m}')"
           style="font-size:11px">☁ ${m}</button>`).join('');
@@ -2044,7 +2096,7 @@ async function loadPatrolFromCloud(ym){
       const d=json.data;
       patrolData={
         fileName:d.fileName||'（雲端載入）',
-        yearMonth:d.yearMonth||ym,
+        yearMonth:String(d.yearMonth||ym).slice(0,7),
         days:{},
         dayStats:d.dayStats||{}
       };
@@ -2606,7 +2658,7 @@ window.addEventListener('DOMContentLoaded',()=>{
           if(!s.personRounds) s.personRounds={};
           if(!s.persons) s.persons=Object.keys(s.personRounds||{});
         });
-        patrolData={fileName:d.fileName||'（雲端載入）',yearMonth:d.yearMonth||latestYm,days:{},dayStats};
+        patrolData={fileName:d.fileName||'（雲端載入）',yearMonth:String(d.yearMonth||latestYm).slice(0,7),days:{},dayStats};
         savePatrolCache(); // 更新本地快取
         document.getElementById('patrol-file-label').textContent=
           '☁ '+(d.fileName||latestYm)+'  ('+latestYm+')  — 雲端更新';

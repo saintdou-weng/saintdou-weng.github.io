@@ -329,61 +329,61 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
 <!-- ══════════════════ PATROL PAGE ══════════════════ -->
 <div class="page" id="page-patrol">
 
-  <div class="card" style="margin-top:12px" id="patrol-upload-card">
-    <div class="card-t" data-zh="上傳巡邏記錄 Excel" data-en="Upload Patrol Excel">上傳巡邏記錄 Excel</div>
-    <div class="drop-zone" id="patrol-drop"
-      onclick="document.getElementById('patrol-file-inp').click()"
-      ondragover="event.preventDefault();this.classList.add('drag')"
-      ondragleave="this.classList.remove('drag')"
-      ondrop="handlePatrolDrop(event)">
-      <div class="dz-i">📋</div>
-      <div class="dz-t" data-zh="點擊或拖入巡邏 Excel 檔案" data-en="Click or drag patrol Excel file here">點擊或拖入巡邏 Excel 檔案</div>
-      <div class="dz-s">.xls / .xlsx — 每個 sheet 對應一天 (01, 02…)</div>
-      <input type="file" id="patrol-file-inp" accept=".xls,.xlsx" style="display:none" onchange="loadPatrolFile(this)"/>
+  <!-- ── 控制列（永遠顯示）──────────────────────────────── -->
+  <div class="card" style="margin-top:12px">
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;justify-content:space-between">
+      <!-- 左：週期 + 日期導航 -->
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <div class="period-btns">
+          <div class="pbtn on" onclick="setPatrolPeriod('day')" id="pp-day"><span data-zh="日" data-en="Day">日</span></div>
+          <div class="pbtn" onclick="setPatrolPeriod('week')" id="pp-week"><span data-zh="週" data-en="Week">週</span></div>
+          <div class="pbtn" onclick="setPatrolPeriod('month')" id="pp-month"><span data-zh="月" data-en="Month">月</span></div>
+        </div>
+        <div class="dn" id="patrol-date-nav" style="display:flex;align-items:center;gap:5px">
+          <button class="btn btn-ghost btn-sm" onclick="patrolNav(-1)">◀</button>
+          <input type="date" id="patrol-date-inp" onchange="renderPatrol()"/>
+          <button class="btn btn-ghost btn-sm" onclick="patrolNav(1)">▶</button>
+        </div>
+        <label style="font-size:11px;color:var(--text2);display:flex;align-items:center;gap:4px">
+          <span data-zh="間隔" data-en="Interval">間隔</span>
+          <input type="number" id="round-threshold" value="90" min="10" max="300"
+            style="width:52px;border:1.5px solid var(--border);border-radius:5px;
+            padding:3px 5px;font-size:11px;font-family:'IBM Plex Mono',monospace;
+            color:var(--blue);outline:none" onchange="reparsePatrol()"/>
+          <span style="font-size:10px;color:var(--text3)">min</span>
+        </label>
+      </div>
+      <!-- 右：匯入 + 雲端月份 + 存雲端 -->
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <!-- 月份快選 -->
+        <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center" id="patrol-cloud-months"></div>
+        <button class="btn btn-ghost btn-sm" onclick="fetchPatrolCloudList()" title="查詢雲端月份">☁ <span data-zh="月份" data-en="Months">月份</span></button>
+        <!-- 匯入按鈕（小巧，不佔介面） -->
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer" title="匯入 Excel（自動去重上雲端）">
+          📥 <span data-zh="匯入" data-en="Import">匯入</span>
+          <input type="file" id="patrol-file-inp" accept=".xls,.xlsx" style="display:none" onchange="importPatrolXL(this)"/>
+        </label>
+        <button class="btn btn-ghost btn-sm" onclick="savePatrolToCloud()">☁ <span data-zh="存雲端" data-en="Save">存雲端</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="exportCctvExcel()">📊 <span data-zh="匯出" data-en="Export">匯出</span></button>
+      </div>
     </div>
-    <div class="info-bar" style="margin-top:8px">
-      ℹ️ <span data-zh="需含欄位：Patrol Time, Person, Event, Chip ID" data-en="Required columns: Patrol Time, Person, Event, Chip ID">需含欄位：Patrol Time, Person, Event, Chip ID</span>
-    </div>
-    <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <span style="font-size:12px;color:var(--text2)" data-zh="或從雲端載入上次記錄：" data-en="Or load from cloud:">或從雲端載入上次記錄：</span>
-      <div style="display:flex;gap:6px;flex-wrap:wrap" id="patrol-cloud-months"></div>
-      <button class="btn btn-ghost btn-sm" onclick="fetchPatrolCloudList()">⟳ <span data-zh="查詢可用月份" data-en="Check cloud">查詢可用月份</span></button>
+    <!-- 匯入 log（平時隱藏） -->
+    <div id="patrol-import-log" style="display:none;margin-top:8px;padding:6px 10px;border-radius:6px;
+      background:var(--bg);border:1px solid var(--border);font-size:11px;font-family:'IBM Plex Mono',monospace;
+      color:var(--text2);line-height:1.7"></div>
+    <div class="info-bar" style="margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+      📁 <span id="patrol-file-label" data-zh="尚未載入資料" data-en="No data loaded">尚未載入資料</span>
     </div>
   </div>
 
-  <div id="patrol-data-view" style="display:none">
-    <!-- Config bar -->
-    <div class="card" style="margin-top:12px">
-      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;justify-content:space-between">
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <div class="period-btns">
-            <div class="pbtn on" onclick="setPatrolPeriod('day')" id="pp-day"><span data-zh="日" data-en="Day">日</span></div>
-            <div class="pbtn" onclick="setPatrolPeriod('week')" id="pp-week"><span data-zh="週" data-en="Week">週</span></div>
-            <div class="pbtn" onclick="setPatrolPeriod('month')" id="pp-month"><span data-zh="月" data-en="Month">月</span></div>
-          </div>
-          <div class="dn" id="patrol-date-nav" style="display:flex;align-items:center;gap:5px">
-            <button class="btn btn-ghost btn-sm" onclick="patrolNav(-1)">◀</button>
-            <input type="date" id="patrol-date-inp" onchange="renderPatrol()"/>
-            <button class="btn btn-ghost btn-sm" onclick="patrolNav(1)">▶</button>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <label style="font-size:11px;color:var(--text2);display:flex;align-items:center;gap:5px">
-            <span data-zh="巡邏間隔定義" data-en="Round interval">巡邏間隔定義</span>
-            <input type="number" id="round-threshold" value="90" min="10" max="300"
-              style="width:60px;border:1.5px solid var(--border);border-radius:5px;
-              padding:4px 6px;font-size:11px;font-family:'IBM Plex Mono',monospace;
-              color:var(--blue);outline:none" onchange="reparsePatrol()"/>
-            <span style="font-size:10px;color:var(--text3)">分鐘/min</span>
-          </label>
-          <button class="btn btn-ghost btn-sm" onclick="clearPatrolData()">✕ <span data-zh="清除" data-en="Clear">清除</span></button>
-          <button class="btn btn-ghost btn-sm" onclick="savePatrolToCloud()">☁ <span data-zh="存雲端" data-en="Save Cloud">存雲端</span></button>
-          <button class="btn btn-ghost btn-sm" onclick="exportCctvExcel()">📊 <span data-zh="匯出CCTV" data-en="Export CCTV">匯出CCTV</span></button>
-        </div>
-      </div>
-      <div class="info-bar" style="margin-top:8px;font-family:'IBM Plex Mono',monospace">
-        📁 <span id="patrol-file-label"></span>
-      </div>
+  <!-- ── 資料顯示區（永遠顯示，無資料時顯示提示）──── -->
+  <div id="patrol-data-view">
+
+    <!-- 無資料提示（有資料時由 renderPatrol 隱藏） -->
+    <div id="patrol-empty-state" class="card" style="margin-top:12px;text-align:center;padding:40px 20px;color:var(--text3)">
+      <div style="font-size:36px;margin-bottom:12px">📋</div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:8px" data-zh="尚未載入巡邏資料" data-en="No patrol data loaded">尚未載入巡邏資料</div>
+      <div style="font-size:12px" data-zh="點擊右上角「匯入」選擇 Excel，或點「☁ 月份」從雲端載入" data-en="Click Import to upload Excel, or click ☁ Months to load from cloud">點擊右上角「匯入」選擇 Excel，或點「☁ 月份」從雲端載入</div>
     </div>
 
     <!-- Stats -->
@@ -1275,7 +1275,7 @@ function importCctvExcel(input){
   reader.onload=e=>{
     try{
       const cameras=getCameras();
-      const wb=XLSX.read(e.target.result,{type:'array'});
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
       const ws=wb.Sheets['CCTV Camera Check']||wb.Sheets[wb.SheetNames[0]];
       const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
       let dayRow=null,startRow=0;
@@ -1409,6 +1409,45 @@ function exportCameras(){
 // ═══════════════════════════════════════════════════════
 let patrolData=null, patrolPeriod='day', patrolCharts={};
 
+// ── Patrol localStorage 快取（仿 sewing_v5 的本地快取策略）──
+// 存：把 dayStats 存入 localStorage（days/raw 太大不存）
+function savePatrolCache(){
+  if(!patrolData||!patrolData.dayStats) return;
+  try{
+    localStorage.setItem('vrt_patrol_cache', JSON.stringify({
+      fileName: patrolData.fileName||'',
+      yearMonth: patrolData.yearMonth||'',
+      dayStats: patrolData.dayStats,
+      savedAt: new Date().toISOString(),
+    }));
+  }catch(e){ console.warn('savePatrolCache:',e); }
+}
+// 讀：頁面開啟時立即從 localStorage 還原，不等網路
+function loadPatrolCache(){
+  try{
+    const raw=localStorage.getItem('vrt_patrol_cache');
+    if(!raw) return false;
+    const d=JSON.parse(raw);
+    if(!d.dayStats||!Object.keys(d.dayStats).length) return false;
+    // 補齊缺失欄位
+    Object.values(d.dayStats).forEach(s=>{
+      if(!s.recs) s.recs=[];
+      if(!s.shifts) s.shifts={night:null,day:null};
+      if(!s.personRounds) s.personRounds={};
+      if(!s.persons) s.persons=Object.keys(s.personRounds||{});
+    });
+    patrolData={fileName:d.fileName||'（本地快取）',yearMonth:d.yearMonth,days:{},dayStats:d.dayStats};
+    const days=Object.keys(d.dayStats).sort();
+    if(!days.length) return false;
+    document.getElementById('patrol-file-label').textContent=
+      '📂 '+d.fileName+'  ('+d.yearMonth+')  — 本地快取';
+    document.getElementById('patrol-date-inp').value=d.yearMonth+'-'+days[0];
+    setPatrolPeriod('month');
+    renderPatrol();
+    return true;
+  }catch(e){ console.warn('loadPatrolCache:',e); return false; }
+}
+
 function handlePatrolDrop(e){
   e.preventDefault();document.getElementById('patrol-drop').classList.remove('drag');
   const f=e.dataTransfer.files[0];if(f) parsePatrolFile(f);
@@ -1442,7 +1481,10 @@ function parsePatrolFile(file){
           for(let i=0;i<raw.length;i++){
             const r=raw[i]; if(!r||!r[0]) continue;
             const tRaw=r[0];
-            let t=tRaw instanceof Date?tRaw:typeof tRaw==='number'?new Date(Math.round((tRaw-25569)*86400*1000)):new Date(tRaw);
+            // cellDates:true → Date objects; fallback for serial numbers
+            let t=tRaw instanceof Date?new Date(tRaw.getTime())
+              :typeof tRaw==='number'?new Date(Math.round((tRaw-25569)*86400*1000))
+              :new Date(String(tRaw));
             if(isNaN(t.getTime())) continue;
             recs.push({time:t,person:String(r[2]||'Unknown').trim(),
               event:String(r[4]||'').trim(),chip:String(r[5]||'').trim()});
@@ -1473,8 +1515,7 @@ function parsePatrolFile(file){
       const ym=`${sample.time.getFullYear()}-${String(sample.time.getMonth()+1).padStart(2,'0')}`;
       patrolData={fileName:file.name,yearMonth:ym,days,raw:days};
       buildPatrolSummary();
-      document.getElementById('patrol-upload-card').style.display='none';
-      document.getElementById('patrol-data-view').style.display='';
+      savePatrolCache(); // 存本地快取
       document.getElementById('patrol-file-label').textContent=`${file.name}  (${ym})`;
       const firstDate=ym+'-'+firstDay;
       document.getElementById('patrol-date-inp').value=firstDate;
@@ -1489,9 +1530,119 @@ function parsePatrolFile(file){
 
 function clearPatrolData(){
   patrolData=null;
-  document.getElementById('patrol-upload-card').style.display='';
-  document.getElementById('patrol-data-view').style.display='none';
-  document.getElementById('patrol-file-inp').value='';
+  localStorage.removeItem('vrt_patrol_cache');
+  const inp=document.getElementById('patrol-file-inp');
+  if(inp) inp.value='';
+  const lbl=document.getElementById('patrol-file-label');
+  if(lbl) lbl.textContent='尚未載入資料';
+  const es=document.getElementById('patrol-empty-state');
+  if(es) es.style.display='';
+  const sr=document.getElementById('patrol-stats-row');
+  if(sr) sr.innerHTML='';
+  Object.values(patrolCharts).forEach(c=>{try{c.destroy();}catch(e){}});
+  patrolCharts={};
+  toast('✓ 已清除巡邏資料');
+}
+
+// ── 新版匯入（仿 index.html：去重、任何格式、自動上雲）──
+function importPatrolXL(input){
+  const file=input.files[0]; if(!file) return;
+  const log=document.getElementById('patrol-import-log');
+  log.style.display=''; log.textContent='⏳ 讀取中…';
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      const existKeys=new Set();
+      if(patrolData&&patrolData.days){
+        Object.entries(patrolData.days).forEach(([day,recs])=>{
+          recs.forEach(r=>{existKeys.add(day+'|'+r.person+'|'+r.chip);});
+        });
+      }
+      const newDays={}; let added=0,skipped=0,sheets=0;
+      wb.SheetNames.forEach(name=>{
+        const isDay=/^\d{1,2}$/.test(name);
+        const ws=wb.Sheets[name];
+        const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+        if(!raw.length) return;
+        // Flexible 表頭：掃前10行找含 patrol/time/person 的那行
+        let hdrIdx=-1, ci={time:-1,person:-1,event:-1,chip:-1};
+        for(let i=0;i<Math.min(raw.length,10);i++){
+          const row=raw[i]; if(!row) continue;
+          const rowStr=row.map(v=>String(v||'').toLowerCase()).join(' ');
+          if(rowStr.includes('patrol')||rowStr.includes('person')||rowStr.includes('guard')){
+            hdrIdx=i;
+            row.forEach((h,j)=>{
+              const hs=String(h||'').toLowerCase();
+              if((hs.includes('time')||hs.includes('patrol'))&&ci.time===-1) ci.time=j;
+              else if((hs.includes('person')||hs.includes('name')||hs.includes('guard'))&&ci.person===-1) ci.person=j;
+              else if((hs.includes('event')||hs.includes('checkpoint'))&&ci.event===-1) ci.event=j;
+              else if((hs.includes('chip')||hs.includes('id')||hs.includes('reader'))&&ci.chip===-1) ci.chip=j;
+            });
+            break;
+          }
+        }
+        // 無表頭 fallback：第一格是日期 → 固定欄位
+        const useFixed=hdrIdx===-1;
+        if(useFixed){
+          const fc=raw[0]&&raw[0][0];
+          const ok=fc instanceof Date||(typeof fc==='number'&&fc>40000);
+          if(!ok) return;
+          ci={time:0,person:2,event:4,chip:5};
+        }
+        sheets++;
+        const startRow=useFixed?0:hdrIdx+1;
+        for(let i=startRow;i<raw.length;i++){
+          const r=raw[i]; if(!r) continue;
+          const tRaw=r[ci.time]; if(!tRaw) continue;
+          let t=tRaw instanceof Date?new Date(tRaw.getTime())
+            :typeof tRaw==='number'&&tRaw>40000?new Date(Math.round((tRaw-25569)*86400*1000))
+            :new Date(String(tRaw));
+          if(isNaN(t.getTime())) continue;
+          const person=String(r[ci.person]||'Unknown').trim();
+          const event=String(r[ci.event]||'').trim();
+          const chip=String(r[ci.chip]||'').trim();
+          // 分頁名是日期就用分頁名，否則從時間取
+          const day=isDay?name.padStart(2,'0'):String(t.getDate()).padStart(2,'0');
+          const key=day+'|'+person+'|'+chip+'|'+t.toISOString().slice(11,16);
+          if(existKeys.has(key)){skipped++;continue;}
+          existKeys.add(key);
+          if(!newDays[day]) newDays[day]=[];
+          newDays[day].push({time:t,person,event,chip});
+          added++;
+        }
+      });
+      if(!added&&!patrolData){log.textContent='⚠ 未讀到任何記錄，請確認格式';input.value='';return;}
+      if(!patrolData){
+        const fd=Object.keys(newDays).sort()[0];
+        const s=newDays[fd][0];
+        const ym=s.time.getFullYear()+'-'+String(s.time.getMonth()+1).padStart(2,'0');
+        patrolData={fileName:file.name,yearMonth:ym,days:newDays,raw:newDays};
+      } else {
+        Object.entries(newDays).forEach(([d,recs])=>{
+          if(!patrolData.days[d]) patrolData.days[d]=[];
+          patrolData.days[d].push(...recs);
+        });
+        patrolData.raw=patrolData.days;
+      }
+      buildPatrolSummary(); savePatrolCache();
+      const base=`✅ 新增 ${added} 筆，跳過 ${skipped} 筆（${sheets} 分頁）`;
+      log.textContent=base+' — ☁ 上傳中…';
+      Promise.resolve(savePatrolToCloud()).then(()=>{
+        log.textContent=base+' — ✅ 已同步雲端';
+        setTimeout(()=>{log.style.display='none';},5000);
+      }).catch(()=>{ log.textContent=base+' — ⚠ 雲端同步失敗（資料存本地）'; });
+      const es=document.getElementById('patrol-empty-state'); if(es) es.style.display='none';
+      const lbl=document.getElementById('patrol-file-label');
+      if(lbl) lbl.textContent=file.name+'  ('+patrolData.yearMonth+')  — 新增 '+added+' 筆';
+      const di=document.getElementById('patrol-date-inp');
+      const days=Object.keys(patrolData.dayStats||{}).sort();
+      if(di&&days.length) di.value=patrolData.yearMonth+'-'+days[0];
+      setPatrolPeriod('month'); renderPatrol();
+    }catch(ex){ document.getElementById('patrol-import-log').textContent='❌ '+ex.message; }
+    input.value='';
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 function getThreshold(){ return +(document.getElementById('round-threshold').value)||90; }
@@ -1830,14 +1981,13 @@ async function loadPatrolFromCloud(ym){
         if(!s.recs) s.recs=[];
         if(!s.shifts) s.shifts={night:null,day:null};
       });
-      document.getElementById('patrol-upload-card').style.display='none';
-      document.getElementById('patrol-data-view').style.display='';
       document.getElementById('patrol-file-label').textContent=
         `☁ ${d.fileName||ym}  (${ym})  — ${LANG==='zh'?'雲端載入':'from cloud'}`;
       const days=Object.keys(patrolData.dayStats).sort();
       if(days.length){
         document.getElementById('patrol-date-inp').value=ym+'-'+days[0];
       }
+      savePatrolCache(); // 存本地快取，下次開頁面秒開
       renderPatrol();
       toast(`✓ ${ym} ${LANG==='zh'?'已從雲端載入':'loaded from cloud'}`);
     } else {
@@ -2355,7 +2505,10 @@ window.addEventListener('DOMContentLoaded',()=>{
   if(!localCams || localCams === '[]') {
     setTimeout(()=>syncCamerasFromCloud(), 2000);
   }
-  // 自動從雲端載入最近一個月的巡邏記錄
+  // ── 巡邏資料啟動策略（仿 sewing_v5）──
+  // Step 1: 立即從 localStorage 快取還原（不等網路）
+  const cacheLoaded = loadPatrolCache();
+  // Step 2: 背景從雲端拉最新資料更新快取
   if(getGasUrl()){
     setTimeout(async function(){
       try{
@@ -2364,7 +2517,9 @@ window.addEventListener('DOMContentLoaded',()=>{
           body:JSON.stringify({type:'listPatrol',secret:getSecret()})});
         const j1=await r1.json();
         if(!j1.ok||!j1.months||!j1.months.length) return;
-        const latestYm=j1.months[0]; // 最新月份
+        const latestYm=j1.months[0];
+        // 若快取已是最新月份則不重複拉取
+        if(cacheLoaded && patrolData && patrolData.yearMonth===latestYm) return;
         const r2=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
           body:JSON.stringify({type:'getPatrol',yearMonth:latestYm,secret:getSecret()})});
         const j2=await r2.json();
@@ -2373,24 +2528,21 @@ window.addEventListener('DOMContentLoaded',()=>{
         const dayStats=d.dayStats||{};
         const days=Object.keys(dayStats).sort();
         if(!days.length) return;
-        // 補齊缺失欄位
         Object.values(dayStats).forEach(s=>{
           if(!s.recs) s.recs=[];
           if(!s.shifts) s.shifts={night:null,day:null};
           if(!s.personRounds) s.personRounds={};
-          if(!s.persons) s.persons=[];
+          if(!s.persons) s.persons=Object.keys(s.personRounds||{});
         });
         patrolData={fileName:d.fileName||'（雲端載入）',yearMonth:d.yearMonth||latestYm,days:{},dayStats};
-        // 更新介面
-        document.getElementById('patrol-upload-card').style.display='none';
-        document.getElementById('patrol-data-view').style.display='';
+        savePatrolCache(); // 更新本地快取
         document.getElementById('patrol-file-label').textContent=
-          '☁ '+(d.fileName||latestYm)+'  ('+latestYm+')  — 雲端自動載入';
+          '☁ '+(d.fileName||latestYm)+'  ('+latestYm+')  — 雲端更新';
         document.getElementById('patrol-date-inp').value=latestYm+'-'+days[0];
-        setPatrolPeriod('month'); // 預設月視圖看整月
+        setPatrolPeriod('month');
         renderPatrol();
-      }catch(e){ console.warn('auto patrol load:',e); }
-    }, 3500);
+      }catch(e){ console.warn('auto patrol cloud sync:',e); }
+    }, 3000);
   }
   setLang('zh');
 });

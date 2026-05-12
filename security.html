@@ -207,6 +207,9 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
 #toast{position:fixed;bottom:20px;right:20px;background:#1a2a3a;color:#fff;
   padding:9px 16px;border-radius:8px;font-size:12px;z-index:999;
   box-shadow:0 4px 16px rgba(0,0,0,.3);opacity:0;transition:opacity .3s;pointer-events:none}
+/* DRAG OVER */
+.drag-over{border-color:var(--blue)!important;background:var(--blue-bg)!important}
+#patrol-drop-hint:hover{border-color:var(--blue);background:var(--blue-bg);color:var(--blue)}
 </style>
 </head>
 <body>
@@ -332,7 +335,10 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
 <div class="page" id="page-patrol">
 
   <!-- ── 控制列（永遠顯示）──────────────────────────────── -->
-  <div class="card" style="margin-top:12px">
+  <div class="card" style="margin-top:12px"
+    ondragover="event.preventDefault();this.classList.add('drag-over')"
+    ondragleave="this.classList.remove('drag-over')"
+    ondrop="event.preventDefault();this.classList.remove('drag-over');handlePatrolDrop(event)">
     <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;justify-content:space-between">
       <!-- 左：週期 + 日期導航 -->
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -373,37 +379,46 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
       </div>
       <!-- 右：匯入 + 新增 + 刪除 + 雲端 + 匯出 -->
       <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-        <!-- 月份快選 -->
         <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center" id="patrol-cloud-months"></div>
-        <label class="btn btn-ghost btn-sm" style="cursor:pointer" title="匯入 Excel 巡邏記錄">
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer" title="匯入 Excel 巡邏記錄（或直接拖曳至此區域）">
           📥 <span data-zh="匯入" data-en="Import">匯入</span>
           <input type="file" id="patrol-file-inp" accept=".xls,.xlsx" style="display:none" onchange="importPatrolXL(this)"/>
         </label>
-        <button class="btn btn-g btn-sm" onclick="openAddPatrolModal()" title="手動新增巡邏記錄">
-          ➕ <span data-zh="新增" data-en="Add">新增</span>
-        </button>
-        <button class="btn btn-r btn-sm" id="patrol-del-btn" onclick="deleteSelectedPatrol()"
-          style="display:none" title="刪除已勾選的記錄">
-          🗑 <span data-zh="刪除" data-en="Delete">刪除</span>
-        </button>
-        <button class="btn btn-ghost btn-sm" onclick="exportPatrolExcel()" title="匯出 Excel">📊 <span data-zh="匯出" data-en="Export">匯出</span></button>
-        <button class="btn btn-ghost btn-sm" onclick="window.print()" title="列印">🖨</button>
-        <!-- 雲端圖示列 -->
+        <button class="btn btn-g btn-sm" onclick="openAddPatrolModal()">➕ <span data-zh="新增" data-en="Add">新增</span></button>
+        <button class="btn btn-r btn-sm" id="patrol-del-btn" onclick="deleteSelectedPatrol()" style="display:none">🗑 <span data-zh="刪除" data-en="Delete">刪除</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="exportPatrolExcel()">📊 <span data-zh="匯出" data-en="Export">匯出</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="clearPatrolData()" title="清除所有巡邏資料並重新匯入" style="color:var(--red)">🗑清除</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨</button>
         <div style="display:flex;gap:3px;border-left:1px solid var(--border);padding-left:6px;margin-left:2px">
-          <button class="btn btn-ghost btn-sm" onclick="fetchPatrolCloudList()" title="☁ 查詢雲端月份 / Cloud months">☁⬇</button>
-          <button class="btn btn-ghost btn-sm" onclick="savePatrolToCloud()" title="☁ 上傳巡邏記錄至雲端 / Upload patrol">☁⬆</button>
+          <button class="btn btn-ghost btn-sm" onclick="fetchPatrolCloudList()" title="☁ 查詢雲端月份">☁⬇</button>
+          <button class="btn btn-ghost btn-sm" onclick="savePatrolToCloud()" title="☁ 上傳至雲端">☁⬆</button>
           <button class="btn btn-ghost btn-sm" onclick="copyPatrolSummaryForTg()" title="複製 Telegram 摘要">📋TG</button>
           <button class="share-btn btn-sm" onclick="openShareModal();setShareTab('patrol')"
             style="font-size:11px;padding:4px 9px" title="發送巡邏報告到 Telegram 群組">✈️</button>
         </div>
       </div>
     </div>
-    <!-- 匯入 log（平時隱藏） -->
-    <div id="patrol-import-log" style="display:none;margin-top:8px;padding:6px 10px;border-radius:6px;
-      background:var(--bg);border:1px solid var(--border);font-size:11px;font-family:'IBM Plex Mono',monospace;
-      color:var(--text2);line-height:1.7"></div>
+
+    <!-- 拖曳提示 + 匯入狀態 -->
+    <div id="patrol-drop-hint" style="margin-top:8px;border:2px dashed var(--border2);border-radius:8px;
+      padding:10px 14px;text-align:center;color:var(--text3);font-size:11px;cursor:pointer;transition:.2s"
+      onclick="document.getElementById('patrol-file-inp').click()">
+      📂 <span data-zh="拖曳 .xls/.xlsx 至此區域，或點此選擇檔案" data-en="Drag .xls/.xlsx here, or click to select">
+        拖曳 .xls/.xlsx 至此區域，或點此選擇檔案</span>
+    </div>
+
+    <!-- 匯入進度 log -->
+    <div id="patrol-import-log" style="display:none;margin-top:6px;padding:7px 11px;border-radius:6px;
+      background:var(--blue-bg);border:1px solid var(--blue-bd);font-size:11px;
+      font-family:'IBM Plex Mono',monospace;color:var(--blue);line-height:1.7"></div>
+
+    <!-- 讀取確認欄（顯示解析到的月份/筆數/人員） -->
+    <div id="patrol-parse-confirm" style="display:none;margin-top:6px;padding:7px 11px;border-radius:6px;
+      background:var(--green-bg);border:1px solid var(--green-bd);font-size:11px;color:var(--green)"></div>
+
     <div class="info-bar" style="margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:11px">
-      📁 <span id="patrol-file-label" data-zh="尚未載入資料" data-en="No data loaded">尚未載入資料</span>
+      📁 <span id="patrol-file-label" data-zh="尚未載入資料 — 請拖曳或點擊「匯入」上傳巡邏 Excel" data-en="No data loaded — drag or click Import">
+        尚未載入資料 — 請拖曳或點擊「匯入」上傳巡邏 Excel</span>
     </div>
   </div>
 
@@ -1595,8 +1610,19 @@ function loadPatrolCache(){
     const days=Object.keys(d.dayStats).sort();
     if(!days.length) return false;
     document.getElementById('patrol-file-label').textContent=
-      '📂 '+d.fileName+'  ('+d.yearMonth+')  — 本地快取';
+      '📂 '+d.fileName+'  ('+d.yearMonth+')  — 本地快取'+(d.savedAt?' ('+d.savedAt.slice(0,10)+')':'');
     document.getElementById('patrol-date-inp').value=d.yearMonth+'-'+days[0];
+    // ★ 修正：快取載入時一定要隱藏空白狀態
+    const es=document.getElementById('patrol-empty-state');
+    if(es) es.style.display='none';
+    // 顯示快取確認資訊
+    const pc=document.getElementById('patrol-parse-confirm');
+    if(pc){
+      const persons=new Set(Object.values(d.dayStats).flatMap(s=>s.persons||[]));
+      pc.style.display='';
+      pc.innerHTML=`📂 快取：<strong>${d.yearMonth}</strong> ／ <strong>${days.length}</strong> 天 ／ <strong>${persons.size}</strong> 人員`
+        +`<span style="float:right;font-size:10px;cursor:pointer;color:var(--green)" onclick="this.parentElement.style.display='none'">✕</span>`;
+    }
     setPatrolPeriod('month');
     renderPatrol();
     return true;
@@ -1604,99 +1630,50 @@ function loadPatrolCache(){
 }
 
 function handlePatrolDrop(e){
-  e.preventDefault();document.getElementById('patrol-drop').classList.remove('drag');
-  const f=e.dataTransfer.files[0];if(f) parsePatrolFile(f);
+  e.preventDefault();
+  const f=e.dataTransfer?.files?.[0];
+  if(!f){toast('⚠ 無法讀取拖曳檔案');return;}
+  if(!/\.(xls|xlsx)$/i.test(f.name)){toast('⚠ 請拖曳 .xls 或 .xlsx 檔案');return;}
+  try{
+    const dt=new DataTransfer();
+    dt.items.add(f);
+    const inp=document.getElementById('patrol-file-inp');
+    inp.files=dt.files;
+    importPatrolXL(inp);
+  }catch(ex){
+    // DataTransfer fallback for some browsers
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const wb=XLSX.read(ev.target.result,{type:'array',cellDates:false,raw:true});
+      const fakeInput={files:[f],_wb:wb};
+      importPatrolXL(fakeInput,wb);
+    };
+    reader.readAsArrayBuffer(f);
+  }
 }
-function loadPatrolFile(input){if(input.files[0]) parsePatrolFile(input.files[0]);}
+function loadPatrolFile(input){if(input.files[0]) importPatrolXL(input);}
 
-function parsePatrolFile(file){
-  const reader=new FileReader();
-  reader.onload=e=>{
-    try{
-      const wb=XLSX.read(e.target.result,{type:'array'});
-      const days={};
-      wb.SheetNames.forEach(name=>{
-        if(!name.match(/^\d{1,2}$/)) return;
-        const ws=wb.Sheets[name];
-        const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
-        let hdr=null,hdrIdx=0;
-        for(let i=0;i<raw.length;i++){
-          if(raw[i].find(v=>v&&String(v).toLowerCase().includes('patrol time'))){
-            hdr=raw[i];hdrIdx=i;break;
-          }
-        }
-        // Headerless fallback: old format per-day sheets have no header
-        // Detect: if first cell of first row is a date/number (serial), use fixed columns
-        // Fixed: 0=PatrolTime, 1=ReaderNum, 2=Person, 3=Checkpoint, 4=Event, 5=ChipID
-        if(!hdr){
-          const firstCell=raw[0]&&raw[0][0];
-          const isDateLike=firstCell instanceof Date||(typeof firstCell==='number'&&firstCell>40000);
-          if(!isDateLike) return; // truly unreadable
-          const recs=[];
-          for(let i=0;i<raw.length;i++){
-            const r=raw[i]; if(!r||!r[0]) continue;
-            const tRaw=r[0];
-            // cellDates:true → Date objects; fallback for serial numbers
-            let t=tRaw instanceof Date?new Date(tRaw.getTime())
-              :typeof tRaw==='number'?new Date(Math.round((tRaw-25569)*86400*1000))
-              :new Date(String(tRaw));
-            if(isNaN(t.getTime())) continue;
-            recs.push({time:t,person:String(r[2]||'Unknown').trim(),
-              event:String(r[4]||'').trim(),chip:String(r[5]||'').trim()});
-          }
-          if(recs.length) days[name.padStart(2,'0')]=recs;
-          return;
-        }
-        const ci={
-          time:hdr.findIndex(h=>h&&String(h).toLowerCase().includes('patrol time')),
-          person:hdr.findIndex(h=>h&&String(h).toLowerCase().includes('person')),
-          event:hdr.findIndex(h=>h&&String(h).toLowerCase().includes('event')),
-          chip:hdr.findIndex(h=>h&&String(h).toLowerCase().includes('chip')),
-        };
-        const recs=[];
-        for(let i=hdrIdx+1;i<raw.length;i++){
-          const r=raw[i];if(!r[ci.time]) continue;
-          const tRaw=r[ci.time];
-          let t=typeof tRaw==='number'?new Date(Math.round((tRaw-25569)*86400*1000)):new Date(tRaw);
-          if(isNaN(t.getTime())) continue;
-          recs.push({time:t,person:String(r[ci.person]||'Unknown').trim(),
-            event:String(r[ci.event]||'').trim(),chip:String(r[ci.chip]||'').trim()});
-        }
-        if(recs.length) days[name.padStart(2,'0')]=recs;
-      });
-      if(!Object.keys(days).length){toast('⚠ 無法讀取資料');return;}
-      const firstDay=Object.keys(days).sort()[0];
-      const sample=days[firstDay][0];
-      const ym=(String(sample.time.getFullYear())+'-'+String(sample.time.getMonth()+1).padStart(2,'0')).slice(0,7);
-      patrolData={fileName:file.name,yearMonth:ym,days,raw:days};
-      buildPatrolSummary();
-      savePatrolCache(); // 存本地快取
-      document.getElementById('patrol-file-label').textContent=`${file.name}  (${ym})`;
-      const firstDate=ym+'-'+firstDay;
-      document.getElementById('patrol-date-inp').value=firstDate;
-      renderPatrol();
-      toast(`✓ 已載入 ${Object.keys(days).length} 天巡邏記錄`);
-      // Auto-save to cloud if GAS configured
-      if(getGasUrl()) savePatrolToCloud();
-    }catch(err){console.error(err);toast('⚠ 讀取失敗: '+err.message);}
-  };
-  reader.readAsArrayBuffer(file);
-}
+// [Old parsePatrolFile removed — replaced by importPatrolXL]
 
 function clearPatrolData(){
+  if(!confirm('確定清除所有巡邏資料？（本地快取一併刪除，可重新匯入）')) return;
   patrolData=null;
   localStorage.removeItem('vrt_patrol_cache');
   const inp=document.getElementById('patrol-file-inp');
   if(inp) inp.value='';
   const lbl=document.getElementById('patrol-file-label');
-  if(lbl) lbl.textContent='尚未載入資料';
+  if(lbl) lbl.textContent='尚未載入資料 — 已清除，請重新匯入';
   const es=document.getElementById('patrol-empty-state');
   if(es) es.style.display='';
   const sr=document.getElementById('patrol-stats-row');
   if(sr) sr.innerHTML='';
+  const pc=document.getElementById('patrol-parse-confirm');
+  if(pc) pc.style.display='none';
+  const log=document.getElementById('patrol-import-log');
+  if(log) log.style.display='none';
   Object.values(patrolCharts).forEach(c=>{try{c.destroy();}catch(e){}});
   patrolCharts={};
-  toast('✓ 已清除巡邏資料');
+  toast('🗑 已清除巡邏資料，可重新匯入');
 }
 
 // ── 新版匯入（仿 index.html：去重、任何格式、自動上雲）──
@@ -1907,20 +1884,48 @@ function importPatrolXL(input){
         }
       });
       if(!added&&!patrolData){log.textContent='⚠ 未讀到任何記錄，請確認格式（時間欄格式是否為 YYYY/MM/DD HH:MM:SS？）';input.value='';return;}
-      if(!patrolData){
-        // 從最早一天的第一筆記錄取得年月
-        const fd=Object.keys(newDays).sort()[0];
-        const s=newDays[fd][0];
-        const ym=`${s.time.getFullYear()}-${String(s.time.getMonth()+1).padStart(2,'0')}`;
-        patrolData={fileName:file.name,yearMonth:ym,days:newDays,raw:newDays};
+
+      // ★ 關鍵修正：yearMonth 永遠從「本次匯入」的實際資料推算，不沿用舊快取
+      // 統計各月份出現次數，取最多者為主月份（避免跨月邊界的少量記錄干擾）
+      const ymCount={};
+      Object.entries(newDays).forEach(([day,recs])=>{
+        recs.forEach(r=>{
+          const ym2=`${r.time.getFullYear()}-${String(r.time.getMonth()+1).padStart(2,'0')}`;
+          ymCount[ym2]=(ymCount[ym2]||0)+1;
+        });
+      });
+      // 取記錄最多的月份作為 yearMonth
+      const importedYM=Object.entries(ymCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
+
+      if(!patrolData || !patrolData.days){
+        patrolData={fileName:file.name,yearMonth:importedYM,days:newDays,raw:newDays};
+      } else if(importedYM && importedYM!==patrolData.yearMonth){
+        // 不同月份：建立全新資料（清除舊快取）
+        patrolData={fileName:file.name,yearMonth:importedYM,days:newDays,raw:newDays};
+        toast(`📅 偵測到新月份 ${importedYM}，已切換（舊資料清除）`);
       } else {
+        // 同月份：合併
         Object.entries(newDays).forEach(([d,recs])=>{
           if(!patrolData.days[d]) patrolData.days[d]=[];
           patrolData.days[d].push(...recs);
         });
         patrolData.raw=patrolData.days;
+        patrolData.fileName=file.name;
       }
+
       buildPatrolSummary(); savePatrolCache(); updatePatrolPeriodSelects();
+
+      // 匯入確認欄：顯示解析到的月份、人員、筆數摘要
+      const persons=new Set();
+      Object.values(patrolData.days).forEach(recs=>recs.forEach(r=>persons.add(r.person)));
+      const allDaysCount=Object.keys(patrolData.days).length;
+      const pc=document.getElementById('patrol-parse-confirm');
+      if(pc){
+        pc.style.display='';
+        pc.innerHTML=`✅ 讀取確認：<strong>${importedYM}</strong>，共 <strong>${allDaysCount}</strong> 天 ／ <strong>${persons.size}</strong> 人員 ／ <strong>${Object.values(patrolData.days).reduce((a,r)=>a+r.length,0)}</strong> 筆記錄`
+          +`<span style="float:right;font-size:10px;cursor:pointer;color:var(--green)" onclick="this.parentElement.style.display='none'">✕</span>`;
+      }
+
       const base=`✅ 新增 ${added} 筆，跳過 ${skipped} 筆（${sheets} 分頁）`;
       log.textContent=base+' — ☁ 上傳中…';
       Promise.resolve(savePatrolToCloud()).then(()=>{
@@ -1929,7 +1934,7 @@ function importPatrolXL(input){
       }).catch(()=>{ log.textContent=base+' — ⚠ 雲端同步失敗（資料存本地）'; });
       const es=document.getElementById('patrol-empty-state'); if(es) es.style.display='none';
       const lbl=document.getElementById('patrol-file-label');
-      if(lbl) lbl.textContent=file.name+'  ('+patrolData.yearMonth+')  — 新增 '+added+' 筆';
+      if(lbl) lbl.textContent=`${file.name}  (${patrolData.yearMonth})  — 新增 ${added} 筆`;
       const di=document.getElementById('patrol-date-inp');
       const days=Object.keys(patrolData.dayStats||{}).sort();
       if(di&&days.length) di.value=patrolData.yearMonth+'-'+days[0];

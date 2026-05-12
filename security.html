@@ -340,8 +340,9 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
           <div class="pbtn on" onclick="setPatrolPeriod('day')" id="pp-day"><span data-zh="日" data-en="Day">日</span></div>
           <div class="pbtn" onclick="setPatrolPeriod('week')" id="pp-week"><span data-zh="週" data-en="Week">週</span></div>
           <div class="pbtn" onclick="setPatrolPeriod('month')" id="pp-month"><span data-zh="月" data-en="Month">月</span></div>
+          <div class="pbtn" onclick="setPatrolPeriod('year')" id="pp-year"><span data-zh="年" data-en="Year">年</span></div>
         </div>
-        <!-- 日/週：日期選擇器；月：月份前後鍵 -->
+        <!-- 日/週：日期選擇器；月：月份前後鍵；年：年份下拉 -->
         <div class="dn" id="patrol-date-nav" style="display:flex;align-items:center;gap:5px">
           <button class="btn btn-ghost btn-sm" onclick="patrolNav(-1)">◀</button>
           <input type="date" id="patrol-date-inp" onchange="renderPatrol()"/>
@@ -349,8 +350,17 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
         </div>
         <div id="patrol-month-nav" style="display:none;align-items:center;gap:5px">
           <button class="btn btn-ghost btn-sm" onclick="patrolMonthNav(-1)">◀</button>
-          <span id="patrol-month-label" style="font-size:12px;font-weight:600;color:var(--blue);min-width:60px;text-align:center"></span>
+          <select id="patrol-month-select" onchange="patrolMonthSelect(this.value)"
+            style="border:1.5px solid var(--border);border-radius:6px;padding:4px 7px;font-size:11px;
+            font-family:inherit;background:#fff;color:var(--text);outline:none;cursor:pointer"></select>
           <button class="btn btn-ghost btn-sm" onclick="patrolMonthNav(1)">▶</button>
+        </div>
+        <div id="patrol-year-nav" style="display:none;align-items:center;gap:5px">
+          <button class="btn btn-ghost btn-sm" onclick="patrolYearNav(-1)">◀</button>
+          <select id="patrol-year-select" onchange="patrolYearSelect(this.value)"
+            style="border:1.5px solid var(--border);border-radius:6px;padding:4px 7px;font-size:11px;
+            font-family:inherit;background:#fff;color:var(--text);outline:none;cursor:pointer"></select>
+          <button class="btn btn-ghost btn-sm" onclick="patrolYearNav(1)">▶</button>
         </div>
         <label style="font-size:11px;color:var(--text2);display:flex;align-items:center;gap:4px">
           <span data-zh="間隔" data-en="Interval">間隔</span>
@@ -361,18 +371,31 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
           <span style="font-size:10px;color:var(--text3)">min</span>
         </label>
       </div>
-      <!-- 右：匯入 + 雲端月份 + 存雲端 -->
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <!-- 右：匯入 + 新增 + 刪除 + 雲端 + 匯出 -->
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
         <!-- 月份快選 -->
         <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center" id="patrol-cloud-months"></div>
-        <button class="btn btn-ghost btn-sm" onclick="fetchPatrolCloudList()" title="查詢雲端月份">☁ <span data-zh="月份" data-en="Months">月份</span></button>
-        <!-- 匯入按鈕（小巧，不佔介面） -->
-        <label class="btn btn-ghost btn-sm" style="cursor:pointer" title="匯入 Excel（自動去重上雲端）">
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer" title="匯入 Excel 巡邏記錄">
           📥 <span data-zh="匯入" data-en="Import">匯入</span>
           <input type="file" id="patrol-file-inp" accept=".xls,.xlsx" style="display:none" onchange="importPatrolXL(this)"/>
         </label>
-        <button class="btn btn-ghost btn-sm" onclick="savePatrolToCloud()">☁ <span data-zh="存雲端" data-en="Save">存雲端</span></button>
-        <button class="btn btn-ghost btn-sm" onclick="exportCctvExcel()">📊 <span data-zh="匯出" data-en="Export">匯出</span></button>
+        <button class="btn btn-g btn-sm" onclick="openAddPatrolModal()" title="手動新增巡邏記錄">
+          ➕ <span data-zh="新增" data-en="Add">新增</span>
+        </button>
+        <button class="btn btn-r btn-sm" id="patrol-del-btn" onclick="deleteSelectedPatrol()"
+          style="display:none" title="刪除已勾選的記錄">
+          🗑 <span data-zh="刪除" data-en="Delete">刪除</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="exportPatrolExcel()" title="匯出 Excel">📊 <span data-zh="匯出" data-en="Export">匯出</span></button>
+        <button class="btn btn-ghost btn-sm" onclick="window.print()" title="列印">🖨</button>
+        <!-- 雲端圖示列 -->
+        <div style="display:flex;gap:3px;border-left:1px solid var(--border);padding-left:6px;margin-left:2px">
+          <button class="btn btn-ghost btn-sm" onclick="fetchPatrolCloudList()" title="☁ 查詢雲端月份 / Cloud months">☁⬇</button>
+          <button class="btn btn-ghost btn-sm" onclick="savePatrolToCloud()" title="☁ 上傳巡邏記錄至雲端 / Upload patrol">☁⬆</button>
+          <button class="btn btn-ghost btn-sm" onclick="copyPatrolSummaryForTg()" title="複製 Telegram 摘要">📋TG</button>
+          <button class="share-btn btn-sm" onclick="openShareModal();setShareTab('patrol')"
+            style="font-size:11px;padding:4px 9px" title="發送巡邏報告到 Telegram 群組">✈️</button>
+        </div>
       </div>
     </div>
     <!-- 匯入 log（平時隱藏） -->
@@ -441,13 +464,20 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
 
     <!-- Daily detail table -->
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
         <div class="card-t" style="margin:0" data-zh="每日明細（含班別時段）" data-en="Daily Detail with Shift Time Range">每日明細（含班別時段）</div>
-        <button class="btn btn-ghost btn-sm" onclick="exportPatrolExcel()">📊 <span data-zh="匯出Excel" data-en="Export Excel">匯出Excel</span></button>
+        <div style="display:flex;gap:5px;align-items:center">
+          <input type="text" id="patrol-search" placeholder="🔍 搜尋…"
+            style="border:1.5px solid var(--border);border-radius:5px;padding:4px 8px;font-size:11px;
+            font-family:inherit;outline:none;width:110px" oninput="renderPatrolDetailTable()"/>
+          <button class="btn btn-ghost btn-sm" onclick="patrolCheckAll()">☐ <span data-zh="全選" data-en="All">全選</span></button>
+          <button class="btn btn-ghost btn-sm" onclick="exportPatrolExcel()">📊 <span data-zh="匯出Excel" data-en="Export Excel">匯出Excel</span></button>
+        </div>
       </div>
       <div class="tbl-wrap">
         <table class="pt">
           <thead><tr>
+            <th style="width:28px"><input type="checkbox" id="patrol-chk-all" onchange="patrolToggleAll(this)"/></th>
             <th data-zh="日期" data-en="Date">日期</th>
             <th data-zh="夜班（時段 / 次數）" data-en="Night (Period / Rounds)">🌙 夜班</th>
             <th data-zh="日班（時段 / 次數）" data-en="☀ Day (Period / Rounds)">☀ 日班</th>
@@ -461,11 +491,49 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
           <tbody id="patrol-detail-tbody"></tbody>
         </table>
       </div>
+      <div style="margin-top:7px;font-size:10px;color:var(--text3)" id="patrol-detail-count"></div>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════ SETTINGS PAGE ══════════════════ -->
+<!-- ══ 新增巡邏記錄 Modal ══ -->
+<div class="modal-overlay" id="modal-add-patrol">
+  <div class="modal-box" style="max-width:440px">
+    <div class="modal-title">➕ <span data-zh="新增巡邏記錄" data-en="Add Patrol Record">新增巡邏記錄</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px" data-zh="日期時間" data-en="Date/Time">日期時間</div>
+        <input type="datetime-local" id="ap-time" class="set-inp"/>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px" data-zh="班別" data-en="Shift">班別</div>
+        <select id="ap-event" class="set-inp">
+          <option value="Night Shift">🌙 Night Shift</option>
+          <option value="Day Shift">☀ Day Shift</option>
+          <option value="">— 不明 —</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px" data-zh="人員姓名" data-en="Person">人員姓名</div>
+        <input type="text" id="ap-person" class="set-inp" placeholder="e.g. Hea Manghorng"/>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px">Chip ID</div>
+        <input type="text" id="ap-chip" class="set-inp" placeholder="e.g. 0F004EBEFC"/>
+      </div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:3px" data-zh="巡檢點" data-en="Checkpoint">巡檢點</div>
+      <input type="text" id="ap-checkpoint" class="set-inp" placeholder="未设置"/>
+    </div>
+    <div style="display:flex;gap:7px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-patrol')"><span data-zh="取消" data-en="Cancel">取消</span></button>
+      <button class="btn btn-g" onclick="submitAddPatrol()">➕ <span data-zh="新增" data-en="Add">新增</span></button>
+    </div>
+  </div>
+</div>
 <div class="page" id="page-settings">
   <div class="card" style="margin-top:12px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
@@ -1632,6 +1700,154 @@ function clearPatrolData(){
 }
 
 // ── 新版匯入（仿 index.html：去重、任何格式、自動上雲）──
+// ★ 日期修正核心：直接建立本地時間，不受 UTC 偏移影響
+function parsePatrolDateLocal(v){
+  if(v==null||v==='') return null;
+  // 字串格式 "2026/05/01 00:25:29" 或 "2026-05-01 00:25:29"
+  if(typeof v==='string'){
+    const m=v.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})[\sT](\d{1,2}):(\d{2}):?(\d{0,2})/);
+    if(m) return new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+(m[6]||0));
+    const m2=v.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if(m2) return new Date(+m2[1],+m2[2]-1,+m2[3]);
+    return null;
+  }
+  // Excel 序號 → 本地時間（補 timezoneOffset 校正 UTC 偏移）
+  if(typeof v==='number'&&v>40000){
+    const ms=Math.round((v-25569)*86400*1000);
+    const d=new Date(ms);
+    return new Date(ms+d.getTimezoneOffset()*60000);
+  }
+  return null;
+}
+
+// ── 年份導航 ──────────────────────────────────────────
+function getAvailPatrolYears(){
+  if(!patrolData) return [];
+  const yms=patrolData.yearMonth?[patrolData.yearMonth]:[];
+  // 從 dayStats 取所有年份
+  if(patrolData.dayStats){
+    Object.keys(patrolData.dayStats).forEach(d=>{if(d.length>=7)yms.push(d.slice(0,7));});
+  }
+  return [...new Set(yms.map(ym=>ym.slice(0,4)))].sort();
+}
+function getAvailPatrolMonths(){
+  if(!patrolData) return [];
+  const yms=patrolData.yearMonth?[patrolData.yearMonth]:[];
+  if(patrolData.dayStats){
+    Object.keys(patrolData.dayStats).forEach(d=>{if(d.length>=7)yms.push(d.slice(0,7));});
+  }
+  return [...new Set(yms)].sort();
+}
+let patrolCurYear='';
+function patrolYearNav(dir){
+  const years=getAvailPatrolYears();
+  if(!years.length) return;
+  const idx=Math.max(0,Math.min(years.length-1,years.indexOf(patrolCurYear)+dir));
+  patrolCurYear=years[idx];
+  const sel=document.getElementById('patrol-year-select');
+  if(sel) sel.value=patrolCurYear;
+  renderPatrol();
+}
+function patrolYearSelect(y){ patrolCurYear=y; renderPatrol(); }
+function patrolMonthSelect(ym){
+  patrolData.yearMonth=ym;
+  const lbl=document.getElementById('patrol-month-label');
+  if(lbl) lbl.textContent=ym;
+  const di=document.getElementById('patrol-date-inp');
+  const days=Object.keys(patrolData.dayStats||{}).sort();
+  if(di&&days.length) di.value=ym+'-'+days[0];
+  renderPatrol();
+}
+function updatePatrolPeriodSelects(){
+  if(!patrolData) return;
+  const months=getAvailPatrolMonths();
+  const years=getAvailPatrolYears();
+  const mSel=document.getElementById('patrol-month-select');
+  const ySel=document.getElementById('patrol-year-select');
+  if(mSel) mSel.innerHTML=months.map(m=>`<option value="${m}"${m===patrolData.yearMonth?' selected':''}>${m}</option>`).join('');
+  if(ySel){
+    patrolCurYear=patrolCurYear||years[years.length-1]||'';
+    ySel.innerHTML=years.map(y=>`<option value="${y}"${y===patrolCurYear?' selected':''}>${y}</option>`).join('');
+  }
+}
+
+// ── 新增巡邏記錄 ─────────────────────────────────────
+function openAddPatrolModal(){
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const lo=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  document.getElementById('ap-time').value=lo;
+  document.getElementById('ap-person').value='';
+  document.getElementById('ap-chip').value='';
+  document.getElementById('ap-checkpoint').value='';
+  document.getElementById('modal-add-patrol').classList.add('on');
+}
+function submitAddPatrol(){
+  const dt=document.getElementById('ap-time').value;
+  if(!dt){toast('⚠ 請填寫日期時間');return;}
+  const t=new Date(dt);
+  const person=document.getElementById('ap-person').value.trim()||'—';
+  const event=document.getElementById('ap-event').value;
+  const chip=document.getElementById('ap-chip').value.trim();
+  const chkpt=document.getElementById('ap-checkpoint').value.trim()||'未设置';
+  const day=String(t.getDate()).padStart(2,'0');
+  if(!patrolData){
+    const ym=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}`;
+    patrolData={fileName:'手動輸入',yearMonth:ym,days:{},raw:{}};
+  }
+  if(!patrolData.days[day]) patrolData.days[day]=[];
+  patrolData.days[day].push({time:t,person,event,chip,checkpoint:chkpt});
+  buildPatrolSummary(); savePatrolCache(); updatePatrolPeriodSelects();
+  document.getElementById('patrol-empty-state').style.display='none';
+  const lbl=document.getElementById('patrol-file-label');
+  if(lbl) lbl.textContent='手動輸入 ('+patrolData.yearMonth+')';
+  closeModal('modal-add-patrol');
+  setPatrolPeriod('month'); renderPatrol();
+  toast(`✅ 已新增：${person} @ ${dt.replace('T',' ')}`);
+}
+
+// ── 刪除已勾選的巡邏列 ───────────────────────────────
+let patrolSelDays=new Set();
+function patrolCheckAll(){
+  const all=document.getElementById('patrol-chk-all');
+  if(all) all.click();
+}
+function patrolToggleAll(cb){
+  patrolSelDays.clear();
+  document.querySelectorAll('#patrol-detail-tbody input[type=checkbox]').forEach(c=>{
+    c.checked=cb.checked;
+    c.closest('tr').style.background=cb.checked?'var(--blue-bg)':'';
+    if(cb.checked) patrolSelDays.add(c.value);
+  });
+  document.getElementById('patrol-del-btn').style.display=patrolSelDays.size?'':'none';
+}
+function patrolRowToggle(cb,key){
+  if(cb.checked) patrolSelDays.add(key);
+  else patrolSelDays.delete(key);
+  cb.closest('tr').style.background=cb.checked?'var(--blue-bg)':'';
+  document.getElementById('patrol-del-btn').style.display=patrolSelDays.size?'':'none';
+}
+function deleteSelectedPatrol(){
+  if(!patrolSelDays.size) return;
+  if(!confirm(`確定刪除 ${patrolSelDays.size} 天的巡邏記錄？`)) return;
+  patrolSelDays.forEach(day=>{
+    delete patrolData.days[day];
+  });
+  buildPatrolSummary(); savePatrolCache(); updatePatrolPeriodSelects();
+  patrolSelDays.clear();
+  document.getElementById('patrol-del-btn').style.display='none';
+  renderPatrol();
+  toast(`🗑 已刪除 ${patrolSelDays.size} 天記錄`);
+}
+
+// ── Telegram 摘要快速複製 ────────────────────────────
+function copyPatrolSummaryForTg(){
+  const txt=buildPatrolSummaryText();
+  navigator.clipboard.writeText(txt).then(()=>toast('✓ 巡邏摘要已複製到剪貼簿')).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('✓ Copied');
+  });
+}
+
 function importPatrolXL(input){
   const file=input.files[0]; if(!file) return;
   const log=document.getElementById('patrol-import-log');
@@ -1639,7 +1855,8 @@ function importPatrolXL(input){
   const reader=new FileReader();
   reader.onload=e=>{
     try{
-      const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      // ★ Fix: cellDates:false,raw:true → 避免 UTC 時區偏移，月份讀錯問題
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:false,raw:true});
       const existKeys=new Set();
       if(patrolData&&patrolData.days){
         Object.entries(patrolData.days).forEach(([day,recs])=>{
@@ -1650,72 +1867,51 @@ function importPatrolXL(input){
       wb.SheetNames.forEach(name=>{
         const isDay=/^\d{1,2}$/.test(name);
         const ws=wb.Sheets[name];
-        const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+        const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
         if(!raw.length) return;
-        // Flexible 表頭：掃前10行找含 patrol/time/person 的那行
-        let hdrIdx=-1, ci={time:-1,person:-1,event:-1,chip:-1};
-        for(let i=0;i<Math.min(raw.length,10);i++){
-          const row=raw[i]; if(!row) continue;
-          const rowStr=row.map(v=>String(v||'').toLowerCase()).join(' ');
-          if(rowStr.includes('patrol')||rowStr.includes('person')||rowStr.includes('guard')){
-            hdrIdx=i;
-            row.forEach((h,j)=>{
-              const hs=String(h||'').toLowerCase();
-              if((hs.includes('time')||hs.includes('patrol'))&&ci.time===-1) ci.time=j;
-              else if((hs.includes('person')||hs.includes('name')||hs.includes('guard'))&&ci.person===-1) ci.person=j;
-              else if((hs.includes('event')||hs.includes('checkpoint'))&&ci.event===-1) ci.event=j;
-              else if((hs.includes('chip')||hs.includes('id')||hs.includes('reader'))&&ci.chip===-1) ci.chip=j;
-            });
+        // 掃前 8 行找表頭（中/英雙行）
+        let dataStart=0;
+        for(let i=0;i<Math.min(raw.length,8);i++){
+          const rowStr=(raw[i]||[]).map(v=>String(v||'').toLowerCase()).join(' ');
+          if(rowStr.includes('patrol time')||rowStr.includes('巡检时间')||rowStr.includes('readernum')){
+            dataStart=i+1;
+            // 下一行也是表頭（英文行緊接中文行）
+            if(dataStart<raw.length){
+              const ns=(raw[dataStart]||[]).map(v=>String(v||'').toLowerCase()).join(' ');
+              if(ns.includes('patrol time')||ns.includes('chip id')) dataStart++;
+            }
             break;
           }
         }
-        // 無表頭 fallback：第一格是日期 → 固定欄位
-        const useFixed=hdrIdx===-1;
-        if(useFixed){
-          const fc=raw[0]&&raw[0][0];
-          const ok=fc instanceof Date||(typeof fc==='number'&&fc>40000);
-          if(!ok) return;
-          ci={time:0,person:2,event:4,chip:5};
-        }
+        // 固定欄位：巡检时間=0, reader=1, 人員=2, 巡检點=3, 事件=4, ChipID=5
+        const COL={time:0,reader:1,person:2,checkpoint:3,event:4,chip:5};
         sheets++;
-        const startRow=useFixed?0:hdrIdx+1;
-        for(let i=startRow;i<raw.length;i++){
+        for(let i=dataStart;i<raw.length;i++){
           const r=raw[i]; if(!r) continue;
-          const tRaw=r[ci.time]; if(!tRaw) continue;
-          // 解析日期：統一轉成本地時間（cellDates:true 給的 Date 是 UTC，要補時區偏移）
-          let t;
-          if(tRaw instanceof Date){
-            // UTC Date → 加本地時區偏移讓 getFullYear/getMonth/getDate 讀到正確本地日期
-            const off=tRaw.getTimezoneOffset()*60000; // 負值=東時區
-            t=new Date(tRaw.getTime()-off);
-          } else if(typeof tRaw==='number'&&tRaw>40000){
-            t=new Date(Math.round((tRaw-25569)*86400*1000));
-          } else {
-            t=new Date(String(tRaw));
-          }
-          if(isNaN(t.getTime())) continue;
-          const person=String(r[ci.person]||'Unknown').trim();
-          const event=String(r[ci.event]||'').trim();
-          const chip=String(r[ci.chip]||'').trim();
+          const tRaw=r[COL.time]; if(tRaw==null||tRaw==='') continue;
+          // ★ 關鍵：parsePatrolDateLocal 直接建立本地時間，完全無 UTC 偏移
+          const t=parsePatrolDateLocal(tRaw);
+          if(!t||isNaN(t.getTime())) continue;
+          const person=String(r[COL.person]||'').trim()||'—';
+          const event=String(r[COL.event]||'').trim();
+          const chip=String(r[COL.chip]||'').trim();
+          const chkpt=String(r[COL.checkpoint]||'').trim();
           const day=isDay?name.padStart(2,'0'):String(t.getDate()).padStart(2,'0');
-          t._localY=t.getFullYear(); t._localM=t.getMonth()+1; t._localD=t.getDate();
-          const key=day+'|'+person+'|'+chip+'|'+t.toISOString().slice(11,16);
+          const hhmm=`${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+          const key=day+'|'+person+'|'+chip+'|'+hhmm;
           if(existKeys.has(key)){skipped++;continue;}
           existKeys.add(key);
           if(!newDays[day]) newDays[day]=[];
-          newDays[day].push({time:t,person,event,chip});
+          newDays[day].push({time:t,person,event,chip,checkpoint:chkpt});
           added++;
         }
       });
-      if(!added&&!patrolData){log.textContent='⚠ 未讀到任何記錄，請確認格式';input.value='';return;}
+      if(!added&&!patrolData){log.textContent='⚠ 未讀到任何記錄，請確認格式（時間欄格式是否為 YYYY/MM/DD HH:MM:SS？）';input.value='';return;}
       if(!patrolData){
+        // 從最早一天的第一筆記錄取得年月
         const fd=Object.keys(newDays).sort()[0];
         const s=newDays[fd][0];
-        // 優先用本地時區欄位，fallback 到 getFullYear/getMonth（可能有 UTC 偏移）
-        // Always sanitize to YYYY-MM format
-        const _sy=s.time._localY||s.time.getFullYear();
-        const _sm=s.time._localM||(s.time.getMonth()+1);
-        const ym=String(_sy)+'-'+String(_sm).padStart(2,'0');
+        const ym=`${s.time.getFullYear()}-${String(s.time.getMonth()+1).padStart(2,'0')}`;
         patrolData={fileName:file.name,yearMonth:ym,days:newDays,raw:newDays};
       } else {
         Object.entries(newDays).forEach(([d,recs])=>{
@@ -1724,7 +1920,7 @@ function importPatrolXL(input){
         });
         patrolData.raw=patrolData.days;
       }
-      buildPatrolSummary(); savePatrolCache();
+      buildPatrolSummary(); savePatrolCache(); updatePatrolPeriodSelects();
       const base=`✅ 新增 ${added} 筆，跳過 ${skipped} 筆（${sheets} 分頁）`;
       log.textContent=base+' — ☁ 上傳中…';
       Promise.resolve(savePatrolToCloud()).then(()=>{
@@ -1738,7 +1934,7 @@ function importPatrolXL(input){
       const days=Object.keys(patrolData.dayStats||{}).sort();
       if(di&&days.length) di.value=patrolData.yearMonth+'-'+days[0];
       setPatrolPeriod('month'); renderPatrol();
-    }catch(ex){ document.getElementById('patrol-import-log').textContent='❌ '+ex.message; }
+    }catch(ex){ document.getElementById('patrol-import-log').textContent='❌ '+ex.message; console.error(ex); }
     input.value='';
   };
   reader.readAsArrayBuffer(file);
@@ -1831,15 +2027,22 @@ function patrolNav(dir){
 
 function setPatrolPeriod(p){
   patrolPeriod=p;
-  ['day','week','month'].forEach(x=>document.getElementById('pp-'+x).classList.toggle('on',x===p));
-  var nav=document.getElementById('patrol-date-nav');
+  ['day','week','month','year'].forEach(x=>document.getElementById('pp-'+x)?.classList.toggle('on',x===p));
+  var dnav=document.getElementById('patrol-date-nav');
   var mnav=document.getElementById('patrol-month-nav');
-  if(nav)  nav.style.display=p==='month'?'none':'flex';
+  var ynav=document.getElementById('patrol-year-nav');
+  if(dnav) dnav.style.display=(p==='day'||p==='week')?'flex':'none';
   if(mnav) mnav.style.display=p==='month'?'flex':'none';
+  if(ynav) ynav.style.display=p==='year'?'flex':'none';
   // 更新月份標籤
   if(p==='month'&&patrolData){
-    var lbl=document.getElementById('patrol-month-label');
-    if(lbl) lbl.textContent=patrolData.yearMonth||'';
+    const sel=document.getElementById('patrol-month-select');
+    if(sel) sel.value=patrolData.yearMonth||'';
+  }
+  if(p==='year'&&patrolData){
+    if(!patrolCurYear) patrolCurYear=patrolData.yearMonth?.slice(0,4)||new Date().getFullYear().toString();
+    const sel=document.getElementById('patrol-year-select');
+    if(sel) sel.value=patrolCurYear;
   }
   renderPatrol();
 }
@@ -1848,14 +2051,24 @@ function setPatrolPeriod(p){
 var _cloudMonths=[];
 function patrolMonthNav(dir){
   if(!patrolData) return;
-  // 從雲端月份清單切換
+  const months=getAvailPatrolMonths();
+  if(months.length>0){
+    const idx=months.indexOf(patrolData.yearMonth);
+    const next=months[Math.max(0,Math.min(months.length-1,idx+dir))];
+    if(next&&next!==patrolData.yearMonth){
+      patrolData.yearMonth=next;
+      const sel=document.getElementById('patrol-month-select');
+      if(sel) sel.value=next;
+      renderPatrol(); return;
+    }
+  }
+  // 若無本地月份，嘗試雲端
   if(_cloudMonths.length>0){
-    var idx=_cloudMonths.indexOf(patrolData.yearMonth);
-    var next=_cloudMonths[Math.max(0,Math.min(_cloudMonths.length-1,idx-dir))]; // listPatrol 是降序
+    const idx=_cloudMonths.indexOf(patrolData.yearMonth);
+    const next=_cloudMonths[Math.max(0,Math.min(_cloudMonths.length-1,idx-dir))];
     if(next&&next!==patrolData.yearMonth) loadPatrolFromCloud(next);
     return;
   }
-  // 若無雲端清單，自動查詢
   fetchPatrolCloudList().then(()=>{
     if(_cloudMonths.length) patrolMonthNav(dir);
   });
@@ -1867,6 +2080,11 @@ function getPatrolDays(){
   if(patrolPeriod==='day') return[inp.slice(8,10)].filter(d=>patrolData.dayStats[d]);
   if(patrolPeriod==='week'){
     return getWeekDays(inp).map(d=>d.slice(8,10)).filter(d=>patrolData.dayStats[d]);
+  }
+  if(patrolPeriod==='year'){
+    const yr=patrolCurYear||patrolData.yearMonth?.slice(0,4)||'';
+    return Object.keys(patrolData.dayStats).filter(d=>d.slice(0,4)===yr||
+      (patrolData.yearMonth+'/'+(d.padStart(2,'0'))).startsWith(yr)).sort();
   }
   return Object.keys(patrolData.dayStats).sort();
 }
@@ -2006,17 +2224,28 @@ function renderPatrolAnomalies(){
 function renderPatrolDetailTable(){
   const days=patrolPeriod==='month'?Object.keys(patrolData.dayStats).sort():getPatrolDays();
   const tbody=document.getElementById('patrol-detail-tbody');
+  const q=(document.getElementById('patrol-search')?.value||'').toLowerCase();
   const ym=patrolData.yearMonth;
-  tbody.innerHTML=days.map(d=>{
+  patrolSelDays.clear();
+  const chkAll=document.getElementById('patrol-chk-all');
+  if(chkAll) chkAll.checked=false;
+  document.getElementById('patrol-del-btn').style.display='none';
+  const filtered=q?days.filter(d=>{
     const s=patrolData.dayStats[d];
-    const n=s.shifts.night, dy=s.shifts.day;
+    return (ym+'/'+d).includes(q)||s.persons.some(p=>p.toLowerCase().includes(q));
+  }):days;
+  tbody.innerHTML=filtered.map(d=>{
+    const s=patrolData.dayStats[d];
+    const n=s.shifts?.night, dy=s.shifts?.day;
     const personStr=s.persons.slice(0,3).map(p=>`<span class="pchip" style="margin:1px">👤 ${p.split(' ')[0]}</span>`).join('')
       +(s.persons.length>3?`<span style="font-size:9px;color:var(--text3)"> +${s.persons.length-3}</span>`:'');
-    const fmt24=h=>h!==null?`${String(h).padStart(2,'0')}:00`:'—';
+    const fmt24=h=>h!==null&&h!==undefined?`${String(h).padStart(2,'0')}:00`:'—';
+    const hasAnom=(!n||!dy);
     return `<tr>
+      <td style="text-align:center"><input type="checkbox" value="${d}" onchange="patrolRowToggle(this,'${d}')"/></td>
       <td><strong>${ym}/${d}</strong></td>
       <td>${n?`<div class="shift-chip shift-night">🌙 ${n.from}–${n.to}</div>
-        <div style="font-size:9px;color:var(--purple);margin-top:2px">×${n.rounds} ${LANG==='zh'?'次':'rds'}, ${n.scans} ${LANG==='zh'?'掃':'scans'}</div>`
+        <div style="font-size:9px;color:#4f46e5;margin-top:2px">×${n.rounds} ${LANG==='zh'?'次':'rds'}, ${n.scans} ${LANG==='zh'?'掃':'scans'}</div>`
         :`<span class="tag-pend">—</span>`}</td>
       <td>${dy?`<div class="shift-chip shift-day">☀ ${dy.from}–${dy.to}</div>
         <div style="font-size:9px;color:#0284c7;margin-top:2px">×${dy.rounds} ${LANG==='zh'?'次':'rds'}, ${dy.scans} ${LANG==='zh'?'掃':'scans'}</div>`
@@ -2025,12 +2254,14 @@ function renderPatrolDetailTable(){
       <td><strong style="color:var(--blue);font-size:13px">${s.totalRounds}</strong></td>
       <td>${s.totalScans}</td>
       <td><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--red)">${fmt24(s.maxHr)}</span>
-        ${s.hourly[s.maxHr]?`<span style="font-size:9px;color:var(--text3)">(${s.hourly[s.maxHr]})</span>`:''}</td>
-      <td><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--amber)">${s.minHr!==null?fmt24(s.minHr):'—'}</span>
-        ${s.minHr!==null&&s.hourly[s.minHr]?`<span style="font-size:9px;color:var(--text3)">(${s.hourly[s.minHr]})</span>`:''}</td>
-      <td><span class="tag-ok">✓</span></td>
+        ${s.hourly&&s.hourly[s.maxHr]?`<span style="font-size:9px;color:var(--text3)">(${s.hourly[s.maxHr]})</span>`:''}</td>
+      <td><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--amber)">${s.minHr!==null&&s.minHr!==undefined?fmt24(s.minHr):'—'}</span>
+        ${s.minHr!==null&&s.minHr!==undefined&&s.hourly&&s.hourly[s.minHr]?`<span style="font-size:9px;color:var(--text3)">(${s.hourly[s.minHr]})</span>`:''}</td>
+      <td>${hasAnom?`<span class="tag-warn">⚠</span>`:`<span class="tag-ok">✓</span>`}</td>
     </tr>`;
   }).join('');
+  const cnt=document.getElementById('patrol-detail-count');
+  if(cnt) cnt.textContent=`${filtered.length} ${LANG==='zh'?'天':'days'}${q?' (已篩選)':''}`;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2112,6 +2343,7 @@ async function loadPatrolFromCloud(ym){
         document.getElementById('patrol-date-inp').value=ym+'-'+days[0];
       }
       savePatrolCache(); // 存本地快取，下次開頁面秒開
+      updatePatrolPeriodSelects();
       renderPatrol();
       toast(`✓ ${ym} ${LANG==='zh'?'已從雲端載入':'loaded from cloud'}`);
     } else {
@@ -2632,6 +2864,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   // ── 巡邏資料啟動策略（仿 sewing_v5）──
   // Step 1: 立即從 localStorage 快取還原（不等網路）
   const cacheLoaded = loadPatrolCache();
+  if(cacheLoaded) updatePatrolPeriodSelects();
   // Step 2: 背景從雲端拉最新資料更新快取
   if(getGasUrl()){
     setTimeout(async function(){

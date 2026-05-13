@@ -338,7 +338,7 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
   <div class="card" style="margin-top:12px"
     ondragover="event.preventDefault();this.classList.add('drag-over')"
     ondragleave="this.classList.remove('drag-over')"
-    ondrop="event.preventDefault();this.classList.remove('drag-over');handlePatrolDrop(event)">
+    ondrop="event.preventDefault();this.classList.remove('drag-over');patrolDropHandler(event)">
     <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;justify-content:space-between">
       <!-- 左：週期 + 日期導航 -->
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -382,7 +382,8 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
         <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center" id="patrol-cloud-months"></div>
         <label class="btn btn-ghost btn-sm" style="cursor:pointer" title="匯入 Excel 巡邏記錄（或直接拖曳至此區域）">
           📥 <span data-zh="匯入" data-en="Import">匯入</span>
-          <input type="file" id="patrol-file-inp" accept=".xls,.xlsx" style="display:none" onchange="importPatrolXL(this)"/>
+          <input type="file" id="patrol-file-inp" accept=".xls,.xlsx" style="display:none"
+            multiple onchange="addPatrolFiles(this.files)"/>
         </label>
         <button class="btn btn-g btn-sm" onclick="openAddPatrolModal()">➕ <span data-zh="新增" data-en="Add">新增</span></button>
         <button class="btn btn-r btn-sm" id="patrol-del-btn" onclick="deleteSelectedPatrol()" style="display:none">🗑 <span data-zh="刪除" data-en="Delete">刪除</span></button>
@@ -399,12 +400,20 @@ body{min-height:100vh;background:var(--bg);font-family:'Noto Sans TC',sans-serif
       </div>
     </div>
 
-    <!-- 拖曳提示 + 匯入狀態 -->
+    <!-- 拖曳 / 待匯入區（仿 sewing_v5 pendingFiles 模式）-->
     <div id="patrol-drop-hint" style="margin-top:8px;border:2px dashed var(--border2);border-radius:8px;
-      padding:10px 14px;text-align:center;color:var(--text3);font-size:11px;cursor:pointer;transition:.2s"
+      padding:8px 14px;color:var(--text3);font-size:11px;cursor:pointer;transition:.2s"
       onclick="document.getElementById('patrol-file-inp').click()">
-      📂 <span data-zh="拖曳 .xls/.xlsx 至此區域，或點此選擇檔案" data-en="Drag .xls/.xlsx here, or click to select">
-        拖曳 .xls/.xlsx 至此區域，或點此選擇檔案</span>
+      📂 <span data-zh="拖曳多份 .xls/.xlsx 至此，或點此選擇（可多選）" data-en="Drag .xls/.xlsx here or click to select (multiple OK)">
+        拖曳多份 .xls/.xlsx 至此，或點此選擇（可多選）</span>
+    </div>
+    <!-- 待匯入檔案清單 -->
+    <div id="patrol-file-list" style="display:none;margin-top:6px"></div>
+    <!-- 確認匯入按鈕列 -->
+    <div id="patrol-confirm-row" style="display:none;margin-top:6px;display:none;gap:6px;align-items:center">
+      <button class="btn btn-g" onclick="confirmPatrolImport()" id="btn-patrol-confirm">✅ 確認匯入</button>
+      <button class="btn btn-ghost btn-sm" onclick="cancelPatrolImport()">✕ 取消</button>
+      <span id="patrol-pending-count" style="font-size:11px;color:var(--text3)"></span>
     </div>
 
     <!-- 匯入進度 log -->
@@ -1648,29 +1657,44 @@ function loadPatrolCache(){
   }catch(e){ console.warn('loadPatrolCache:',e); return false; }
 }
 
-function handlePatrolDrop(e){
-  e.preventDefault();
-  const f=e.dataTransfer?.files?.[0];
-  if(!f){toast('⚠ 無法讀取拖曳檔案');return;}
-  if(!/\.(xls|xlsx)$/i.test(f.name)){toast('⚠ 請拖曳 .xls 或 .xlsx 檔案');return;}
-  try{
-    const dt=new DataTransfer();
-    dt.items.add(f);
-    const inp=document.getElementById('patrol-file-inp');
-    inp.files=dt.files;
-    importPatrolXL(inp);
-  }catch(ex){
-    // DataTransfer fallback for some browsers
-    const reader=new FileReader();
-    reader.onload=ev=>{
-      const wb=XLSX.read(ev.target.result,{type:'array',cellDates:false,raw:true});
-      const fakeInput={files:[f],_wb:wb};
-      importPatrolXL(fakeInput,wb);
-    };
-    reader.readAsArrayBuffer(f);
-  }
+// ══════════════════════════════════════════════════
+// PATROL DATA — sewing_v5 架構：pendingFiles → parse → confirm → DB
+// ══════════════════════════════════════════════════
+let _patrolPending=[]; // 待匯入檔案佇列
+
+function patrolDropHandler(e){
+  const files=e.dataTransfer?.files;
+  if(files&&files.length) addPatrolFiles(files);
 }
-function loadPatrolFile(input){if(input.files[0]) importPatrolXL(input);}
+function addPatrolFiles(files){
+  Array.from(files).forEach(f=>{
+    if(!/\.(xls|xlsx)$/i.test(f.name)){toast('⚠ 只接受 .xls/.xlsx');return;}
+    if(!_patrolPending.find(x=>x.name===f.name&&x.size===f.size)) _patrolPending.push(f);
+  });
+  renderPatrolFileList();
+  document.getElementById('patrol-file-inp').value='';
+}
+function removePatrolFile(i){ _patrolPending.splice(i,1); renderPatrolFileList(); }
+function renderPatrolFileList(){
+  const listEl=document.getElementById('patrol-file-list');
+  const rowEl=document.getElementById('patrol-confirm-row');
+  if(!_patrolPending.length){
+    listEl.style.display='none'; rowEl.style.display='none'; return;
+  }
+  listEl.style.display='';
+  rowEl.style.display='flex';
+  listEl.innerHTML=_patrolPending.map((f,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;
+      padding:5px 9px;border-bottom:1px solid var(--border);font-size:11px">
+      <span style="color:var(--blue)">📊 ${f.name}</span>
+      <button onclick="removePatrolFile(${i})" style="border:none;background:none;
+        color:var(--red);cursor:pointer;font-size:15px;line-height:1">×</button>
+    </div>`).join('');
+  const cnt=document.getElementById('patrol-pending-count');
+  if(cnt) cnt.textContent=`${_patrolPending.length} 個檔案待匯入`;
+}
+function cancelPatrolImport(){ _patrolPending=[]; renderPatrolFileList(); }
+function loadPatrolFile(input){ if(input.files) addPatrolFiles(input.files); }
 
 // [Old parsePatrolFile removed — replaced by importPatrolXL]
 
@@ -1848,34 +1872,45 @@ function copyPatrolSummaryForTg(){
   });
 }
 
-function importPatrolXL(input){
-  const file=input.files[0]; if(!file) return;
+async function confirmPatrolImport(){
+  if(!_patrolPending.length){toast('⚠ 請先選擇檔案');return;}
   const log=document.getElementById('patrol-import-log');
-  log.style.display=''; log.textContent='⏳ 讀取中…';
-  const reader=new FileReader();
-  reader.onload=e=>{
+  const btn=document.getElementById('btn-patrol-confirm');
+  log.style.display=''; log.textContent='⏳ 解析中…'; btn.disabled=true;
+  // 確保 patrolData 存在
+  if(!patrolData) patrolData={fileName:'',yearMonth:'',days:{},dayStats:{}};
+  if(!patrolData.days) patrolData.days={};
+  if(!patrolData.dayStats) patrolData.dayStats={};
+  let totalAdded=0, totalSkipped=0, totalSheets=0, processedFiles=[];
+  // 建立去重 key set（含現有 dayStats 的所有 key）
+  const existKeys=new Set();
+  Object.entries(patrolData.dayStats||{}).forEach(([fullDate,s])=>{
+    (s.recs||[]).forEach(r=>{
+      const hhmm=r.time?`${String(r.time.getHours()).padStart(2,'0')}:${String(r.time.getMinutes()).padStart(2,'0')}`:'00:00';
+      existKeys.add(fullDate+'|'+r.person+'|'+(r.chip||'')+'|'+hhmm);
+    });
+  });
+  Object.entries(patrolData.days||{}).forEach(([fullDate,recs])=>{
+    recs.forEach(r=>{
+      const hhmm=r.time?`${String(r.time.getHours()).padStart(2,'0')}:${String(r.time.getMinutes()).padStart(2,'0')}`:'00:00';
+      existKeys.add(fullDate+'|'+r.person+'|'+(r.chip||'')+'|'+hhmm);
+    });
+  });
+  for(const file of _patrolPending){
+    log.textContent=`⏳ ${file.name} 讀取中…`;
     try{
-      // ★ Fix: cellDates:false,raw:true → 避免 UTC 時區偏移，月份讀錯問題
-      const wb=XLSX.read(e.target.result,{type:'array',cellDates:false,raw:true});
-      const existKeys=new Set();
-      if(patrolData&&patrolData.days){
-        Object.entries(patrolData.days).forEach(([day,recs])=>{
-          recs.forEach(r=>{existKeys.add(day+'|'+r.person+'|'+r.chip);});
-        });
-      }
-      const newDays={}; let added=0,skipped=0,sheets=0;
-      wb.SheetNames.forEach(name=>{
-        const isDay=/^\d{1,2}$/.test(name);
+      const buf=await file.arrayBuffer();
+      const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:false,raw:true});
+      let added=0,skipped=0,sheets=0;
+      for(const name of wb.SheetNames){
         const ws=wb.Sheets[name];
         const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
-        if(!raw.length) return;
-        // 掃前 8 行找表頭（中/英雙行）
+        if(!raw.length) continue;
         let dataStart=0;
         for(let i=0;i<Math.min(raw.length,8);i++){
           const rowStr=(raw[i]||[]).map(v=>String(v||'').toLowerCase()).join(' ');
           if(rowStr.includes('patrol time')||rowStr.includes('巡检时间')||rowStr.includes('readernum')){
             dataStart=i+1;
-            // 下一行也是表頭（英文行緊接中文行）
             if(dataStart<raw.length){
               const ns=(raw[dataStart]||[]).map(v=>String(v||'').toLowerCase()).join(' ');
               if(ns.includes('patrol time')||ns.includes('chip id')) dataStart++;
@@ -1883,90 +1918,59 @@ function importPatrolXL(input){
             break;
           }
         }
-        // 固定欄位：巡检时間=0, reader=1, 人員=2, 巡检點=3, 事件=4, ChipID=5
-        const COL={time:0,reader:1,person:2,checkpoint:3,event:4,chip:5};
         sheets++;
         for(let i=dataStart;i<raw.length;i++){
           const r=raw[i]; if(!r) continue;
-          const tRaw=r[COL.time]; if(tRaw==null||tRaw==='') continue;
-          // ★ 關鍵：parsePatrolDateLocal 直接建立本地時間，完全無 UTC 偏移
+          const tRaw=r[0]; if(tRaw==null||tRaw==='') continue;
           const t=parsePatrolDateLocal(tRaw);
           if(!t||isNaN(t.getTime())) continue;
-          const person=String(r[COL.person]||'').trim()||'—';
-          const event=String(r[COL.event]||'').trim();
-          const chip=String(r[COL.chip]||'').trim();
-          const chkpt=String(r[COL.checkpoint]||'').trim();
-          const fullDate=fmtDate(t); // YYYY-MM-DD — 完整日期作 key，跨月不衝突
+          const person=String(r[2]||'').trim()||'—';
+          const event=String(r[4]||'').trim();
+          const chip=String(r[5]||'').trim();
+          const chkpt=String(r[3]||'').trim();
+          const reader=String(r[1]||'').trim();
+          const fullDate=fmtDate(t);
           const hhmm=`${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
           const key=fullDate+'|'+person+'|'+chip+'|'+hhmm;
           if(existKeys.has(key)){skipped++;continue;}
           existKeys.add(key);
-          if(!newDays[fullDate]) newDays[fullDate]=[];
-          newDays[fullDate].push({time:t,person,event,chip,checkpoint:chkpt});
+          if(!patrolData.days[fullDate]) patrolData.days[fullDate]=[];
+          patrolData.days[fullDate].push({time:t,person,event,chip,checkpoint:chkpt,reader});
           added++;
         }
-      });
-      if(!added&&!patrolData){log.textContent='⚠ 未讀到任何記錄，請確認格式（時間欄格式是否為 YYYY/MM/DD HH:MM:SS？）';input.value='';return;}
-
-      // ★ 關鍵修正：yearMonth 永遠從「本次匯入」的實際資料推算，不沿用舊快取
-      // 統計各月份出現次數，取最多者為主月份（避免跨月邊界的少量記錄干擾）
-      const ymCount={};
-      Object.entries(newDays).forEach(([day,recs])=>{
-        recs.forEach(r=>{
-          const ym2=`${r.time.getFullYear()}-${String(r.time.getMonth()+1).padStart(2,'0')}`;
-          ymCount[ym2]=(ymCount[ym2]||0)+1;
-        });
-      });
-      // 取記錄最多的月份作為 yearMonth
-      const importedYM=Object.entries(ymCount).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
-
-      if(!patrolData || !patrolData.days){
-        patrolData={fileName:file.name,yearMonth:importedYM,days:newDays,raw:newDays};
-      } else if(importedYM && importedYM!==patrolData.yearMonth){
-        // 不同月份：建立全新資料（清除舊快取）
-        patrolData={fileName:file.name,yearMonth:importedYM,days:newDays,raw:newDays};
-        toast(`📅 偵測到新月份 ${importedYM}，已切換（舊資料清除）`);
-      } else {
-        // 同月份：合併
-        Object.entries(newDays).forEach(([d,recs])=>{
-          if(!patrolData.days[d]) patrolData.days[d]=[];
-          patrolData.days[d].push(...recs);
-        });
-        patrolData.raw=patrolData.days;
-        patrolData.fileName=file.name;
       }
-
-      buildPatrolSummary(); savePatrolCache(); updatePatrolPeriodSelects();
-
-      // 匯入確認欄：顯示解析到的月份、人員、筆數摘要
-      const persons=new Set();
-      Object.values(patrolData.days).forEach(recs=>recs.forEach(r=>persons.add(r.person)));
-      const allDaysCount=Object.keys(patrolData.days).length;
-      const pc=document.getElementById('patrol-parse-confirm');
-      if(pc){
-        pc.style.display='';
-        pc.innerHTML=`✅ 讀取確認：<strong>${importedYM}</strong>，共 <strong>${allDaysCount}</strong> 天 ／ <strong>${persons.size}</strong> 人員 ／ <strong>${Object.values(patrolData.days).reduce((a,r)=>a+r.length,0)}</strong> 筆記錄`
-          +`<span style="float:right;font-size:10px;cursor:pointer;color:var(--green)" onclick="this.parentElement.style.display='none'">✕</span>`;
-      }
-
-      const base=`✅ 新增 ${added} 筆，跳過 ${skipped} 筆（${sheets} 分頁）`;
-      log.textContent=base+' — ☁ 上傳中…';
-      Promise.resolve(savePatrolToCloud()).then(()=>{
-        log.textContent=base+' — ✅ 已同步雲端';
-        setTimeout(()=>{log.style.display='none';},5000);
-      }).catch(()=>{ log.textContent=base+' — ⚠ 雲端同步失敗（資料存本地）'; });
-      const es=document.getElementById('patrol-empty-state'); if(es) es.style.display='none';
-      const lbl=document.getElementById('patrol-file-label');
-      if(lbl) lbl.textContent=`${file.name}  (${patrolData.yearMonth})  — 新增 ${added} 筆`;
-      const di=document.getElementById('patrol-date-inp');
-      const days=Object.keys(patrolData.dayStats||{}).sort();
-      if(di&&days.length) di.value=patrolData.yearMonth+'-'+days[0];
-      setPatrolPeriod('month'); renderPatrol();
-    }catch(ex){ document.getElementById('patrol-import-log').textContent='❌ '+ex.message; console.error(ex); }
-    input.value='';
-  };
-  reader.readAsArrayBuffer(file);
+      totalAdded+=added; totalSkipped+=skipped; totalSheets+=sheets;
+      processedFiles.push(`${file.name}（+${added}筆）`);
+    }catch(ex){ log.textContent=`❌ ${file.name}: ${ex.message}`; console.error(ex); }
+  }
+  // ★ 核心：從 patrolData.days 合併到 dayStats（永不清除已有 dayStats）
+  buildPatrolSummaryFromDays();
+  savePatrolCache(); updatePatrolPeriodSelects();
+  // UI 更新
+  const es=document.getElementById('patrol-empty-state'); if(es) es.style.display='none';
+  const allDays=Object.keys(patrolData.dayStats).length;
+  const persons=new Set(Object.values(patrolData.dayStats).flatMap(s=>s.persons||[]));
+  const pc=document.getElementById('patrol-parse-confirm');
+  if(pc){
+    pc.style.display='';
+    pc.innerHTML=`✅ 合計：<strong>${patrolData.months?.join(' / ')}</strong> ／ <strong>${allDays}</strong> 天 ／ <strong>${persons.size}</strong> 人員 ／ <strong>${totalAdded}</strong> 筆新增，${totalSkipped} 跳過`
+      +`<span style="float:right;font-size:10px;cursor:pointer;color:var(--green)" onclick="this.parentElement.style.display='none'">✕</span>`;
+  }
+  log.textContent=`✅ ${processedFiles.join('、')} — 新增 ${totalAdded} 筆，跳過 ${totalSkipped} 筆 — ☁ 上傳中…`;
+  document.getElementById('patrol-file-label').textContent=
+    `📂 ${patrolData.months?.join(' / ')||''}  — 共 ${allDays} 天 ${totalAdded} 筆新增`;
+  setPatrolPeriod('month'); renderPatrol();
+  // 自動上雲
+  savePatrolToCloud().then(()=>{
+    log.textContent=log.textContent.replace('上傳中…','✅ 已同步雲端');
+    setTimeout(()=>{ log.style.display='none'; },5000);
+  }).catch(()=>{ log.textContent=log.textContent.replace('上傳中…','⚠ 雲端同步失敗（資料存本地）'); });
+  _patrolPending=[]; renderPatrolFileList();
+  btn.disabled=false;
 }
+
+// 重新命名保留舊的單檔介面（給 cloud drop-hint 呼叫，實際走 addPatrolFiles）
+function importPatrolXL(input){ if(input&&input.files) addPatrolFiles(input.files); }
 
 function getThreshold(){ return +(document.getElementById('round-threshold').value)||90; }
 
@@ -2006,16 +2010,13 @@ function getHourlyDist(recs){
   return hr;
 }
 
-function buildPatrolSummary(){
+// ★ 從 patrolData.days（raw records）合併計算 dayStats
+// 永遠是 MERGE，不清除雲端載入的既有 dayStats
+function buildPatrolSummaryFromDays(){
   if(!patrolData) return;
-  const dayStats={};
-  const monthsSet=new Set();
-  Object.entries(patrolData.days).forEach(([dayKey,recs])=>{
+  if(!patrolData.dayStats) patrolData.dayStats={};
+  Object.entries(patrolData.days||{}).forEach(([fullDate,recs])=>{
     if(!recs||!recs.length) return;
-    // ★ 永遠從 recs[0].time 推算完整日期，不依賴 dayKey 格式
-    const t0=recs[0].time;
-    const fullDate=fmtDate(t0); // YYYY-MM-DD
-    monthsSet.add(fullDate.slice(0,7));
     const{totalRounds,personRounds}=detectRounds(recs);
     const shifts=getShiftStats(recs);
     const hourly=getHourlyDist(recs);
@@ -2023,18 +2024,19 @@ function buildPatrolSummary(){
     const nonZero=hourly.map((v,i)=>({v,i})).filter(x=>x.v>0);
     const minHr=nonZero.length?nonZero.reduce((a,b)=>a.v<=b.v?a:b).i:null;
     const chips=new Set(recs.map(r=>r.chip)).size;
-    dayStats[fullDate]={recs,totalRounds,personRounds,persons:Object.keys(personRounds),
-      shifts,hourly,maxHr,minHr,chips,totalScans:recs.length};
+    patrolData.dayStats[fullDate]={recs,totalRounds,personRounds,
+      persons:Object.keys(personRounds),shifts,hourly,maxHr,minHr,chips,totalScans:recs.length};
   });
-  patrolData.dayStats=dayStats;
-  patrolData.months=[...monthsSet].sort();
-  // 確保 yearMonth 是有效的月份（從最新月份取）
+  // 更新 months / yearMonth
+  const ms=new Set(Object.keys(patrolData.dayStats).map(k=>k.slice(0,7)).filter(m=>m.length===7));
+  patrolData.months=[...ms].sort();
   if(!patrolData.yearMonth||!patrolData.months.includes(patrolData.yearMonth)){
     patrolData.yearMonth=patrolData.months[patrolData.months.length-1]||'';
   }
 }
-
-function reparsePatrol(){buildPatrolSummary();renderPatrol();}
+// 保留舊名讓 reparsePatrol 等呼叫不壞
+function buildPatrolSummary(){ buildPatrolSummaryFromDays(); }
+function reparsePatrol(){ buildPatrolSummaryFromDays(); renderPatrol(); }
 
 // ◀ ▶ 巡邏日期/週導航
 function patrolNav(dir){
@@ -2334,31 +2336,37 @@ function renderPatrolDetailTable(){
 // PATROL CLOUD SYNC
 // ═══════════════════════════════════════════════════════
 async function savePatrolToCloud(){
-  if(!patrolData){toast('⚠ 請先上傳巡邏 Excel');return;}
+  if(!patrolData||!Object.keys(patrolData.dayStats||{}).length){
+    toast('⚠ 請先匯入巡邏資料'); return;
+  }
   const url=getGasUrl();
-  if(!url){toast('⚠ 請先設定 GAS URL');return;}
-  toast(LANG==='zh'?'☁ 上傳中…':'☁ Uploading…');
-  // Serialize dayStats without raw recs (too large)
+  if(!url) return; // 無 GAS URL 時靜默（不阻擋匯入流程）
+  // Slim dayStats（去掉大型 recs[]）
   const slim={};
   Object.entries(patrolData.dayStats).forEach(([d,s])=>{
-    slim[d]={
-      totalRounds:s.totalRounds,totalScans:s.totalScans,persons:s.persons,
-      personRounds:s.personRounds,shifts:s.shifts,
-      hourly:s.hourly,maxHr:s.maxHr,minHr:s.minHr,chips:s.chips,
-    };
+    slim[d]={totalRounds:s.totalRounds,totalScans:s.totalScans,persons:s.persons,
+      personRounds:s.personRounds,shifts:s.shifts,hourly:s.hourly,
+      maxHr:s.maxHr,minHr:s.minHr,chips:s.chips};
   });
-  const payload={type:'savePatrol',yearMonth:patrolData.yearMonth,
-    fileName:patrolData.fileName,dayStats:slim,secret:getSecret()};
+  const months=patrolData.months||[];
+  // ★ 一份資料全部上傳：每個月份都存一次（GAS 接收 savePatrol action）
+  // 同時也存一個 "all" 彙總鍵
+  const basePayload={dayStats:slim,fileName:patrolData.fileName||'',months,secret:getSecret()};
   try{
-    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify(payload)});
-    const json=await res.json();
-    if(json.ok){
-      toast(`✓ ${patrolData.yearMonth} ${LANG==='zh'?'巡邏記錄已存到雲端':'patrol saved to cloud'}`);
-    } else {
-      toast('⚠ 上傳失敗: '+(json.error||'error'));
+    // 存 "all" 鍵（一份總覽）
+    await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({...basePayload,type:'savePatrol',yearMonth:'all'})});
+    // 同時也按月份分存（向後相容）
+    for(const ym of months){
+      const ymSlim={};
+      Object.entries(slim).forEach(([d,s])=>{ if(d.startsWith(ym)) ymSlim[d]=s; });
+      if(Object.keys(ymSlim).length){
+        await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+          body:JSON.stringify({...basePayload,type:'savePatrol',yearMonth:ym,dayStats:ymSlim})});
+      }
     }
-  }catch(e){toast('⚠ 上傳失敗: '+e.message);}
+    toast(`☁ 巡邏記錄已同步（${months.join('/')}）`);
+  }catch(e){ throw e; }
 }
 
 async function fetchPatrolCloudList(){
@@ -2387,53 +2395,60 @@ async function fetchPatrolCloudList(){
   }catch(e){btn.innerHTML='<span style="font-size:11px;color:var(--red)">查詢失敗</span>';}
 }
 
-// ★ 一鍵下載雲端所有月份，合併成一份資料（仿 sewing 的累積模式）
+// ★ 一鍵下載雲端所有月份，合併成一份資料
 async function downloadAllFromCloud(){
   const url=getGasUrl();
   if(!url){toast('⚠ 請先設定 GAS URL');return;}
   const lbl=document.getElementById('patrol-file-label');
-  if(lbl) lbl.textContent='☁ 下載所有月份中…';
+  const log=document.getElementById('patrol-import-log');
+  log.style.display=''; log.textContent='☁ 嘗試下載合併資料…';
+  if(!patrolData) patrolData={fileName:'',yearMonth:'',days:{},dayStats:{}};
+  if(!patrolData.dayStats) patrolData.dayStats={};
   try{
-    // Step 1: 取月份清單
-    const r1=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify({type:'listPatrol',secret:getSecret()})});
-    const j1=await r1.json();
-    if(!j1.ok||!j1.months||!j1.months.length){toast('⚠ 雲端無巡邏資料');return;}
-    const months=[...new Set(j1.months.map(m=>String(m).slice(0,7)))].sort();
-    // Step 2: 逐月下載並合併
-    const combinedStats={};
-    let downloaded=0;
-    for(const ym of months){
-      if(lbl) lbl.textContent=`☁ 下載中… ${ym} (${++downloaded}/${months.length})`;
-      try{
-        const r2=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
-          body:JSON.stringify({type:'getPatrol',yearMonth:ym,secret:getSecret()})});
-        const j2=await r2.json();
-        if(j2.ok&&j2.data&&j2.data.dayStats){
-          // 轉換 "DD" key → "YYYY-MM-DD"
-          Object.entries(j2.data.dayStats).forEach(([dayKey,s])=>{
-            if(!s.recs) s.recs=[];
-            if(!s.shifts) s.shifts={night:null,day:null};
-            if(!s.personRounds) s.personRounds={};
-            if(!s.persons) s.persons=Object.keys(s.personRounds||{});
-            const fullKey=/^\d{4}-\d{2}-\d{2}$/.test(dayKey)?dayKey:ym+'-'+dayKey.padStart(2,'0');
-            combinedStats[fullKey]=s;
-          });
-        }
-      }catch(e){console.warn('Failed month',ym,e);}
+    // Step 1: 先嘗試 "all" 彙總鍵
+    const r0=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({type:'getPatrol',yearMonth:'all',secret:getSecret()})});
+    const j0=await r0.json();
+    if(j0.ok&&j0.data&&j0.data.dayStats&&Object.keys(j0.data.dayStats).length){
+      Object.entries(j0.data.dayStats).forEach(([k,s])=>{
+        s.recs=s.recs||[]; s.shifts=s.shifts||{night:null,day:null};
+        s.personRounds=s.personRounds||{}; s.persons=s.persons||[];
+        const fk=/^\d{4}-\d{2}-\d{2}$/.test(k)?k:(j0.data.yearMonth||'').slice(0,7)+'-'+k.padStart(2,'0');
+        patrolData.dayStats[fk]=s;
+      });
+      log.textContent='☁ 從 all 鍵載入成功，更新中…';
+    } else {
+      // Step 2: fallback → 逐月下載
+      const r1=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+        body:JSON.stringify({type:'listPatrol',secret:getSecret()})});
+      const j1=await r1.json();
+      if(!j1.ok||!j1.months||!j1.months.length){toast('⚠ 雲端無巡邏資料');log.style.display='none';return;}
+      const months=[...new Set(j1.months.map(m=>String(m).slice(0,7)))].sort();
+      let downloaded=0;
+      for(const ym of months){
+        log.textContent=`☁ 下載中… ${ym} (${++downloaded}/${months.length})`;
+        try{
+          const r2=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},
+            body:JSON.stringify({type:'getPatrol',yearMonth:ym,secret:getSecret()})});
+          const j2=await r2.json();
+          if(j2.ok&&j2.data&&j2.data.dayStats){
+            Object.entries(j2.data.dayStats).forEach(([k,s])=>{
+              s.recs=s.recs||[]; s.shifts=s.shifts||{night:null,day:null};
+              s.personRounds=s.personRounds||{}; s.persons=s.persons||[];
+              const fk=/^\d{4}-\d{2}-\d{2}$/.test(k)?k:ym+'-'+k.padStart(2,'0');
+              patrolData.dayStats[fk]=s;
+            });
+          }
+        }catch(e){console.warn('Failed month',ym,e);}
+      }
     }
-    if(!Object.keys(combinedStats).length){toast('⚠ 無法下載資料');return;}
-    // Step 3: 建立合併 patrolData（不清除現有本地資料，而是合併）
-    if(!patrolData){
-      patrolData={fileName:'☁ 雲端合併',yearMonth:'',days:{},dayStats:{}};
-    }
-    Object.assign(patrolData.dayStats, combinedStats);
+    if(!Object.keys(patrolData.dayStats).length){toast('⚠ 無法下載資料');log.style.display='none';return;}
+    // 更新 months/yearMonth
     const ms=new Set(Object.keys(patrolData.dayStats).map(k=>k.slice(0,7)).filter(m=>m.length===7));
     patrolData.months=[...ms].sort();
     patrolData.yearMonth=patrolData.months[patrolData.months.length-1]||'';
-    patrolData.fileName=`☁ 雲端 (${months.join(', ')})`;
-    savePatrolCache();
-    updatePatrolPeriodSelects();
+    patrolData.fileName=`☁ 雲端 (${patrolData.months.join(', ')})`;
+    savePatrolCache(); updatePatrolPeriodSelects();
     document.getElementById('patrol-empty-state').style.display='none';
     const allDays=Object.keys(patrolData.dayStats).length;
     if(lbl) lbl.textContent=`☁ 雲端合併：${patrolData.months.join(' / ')} — ${allDays} 天`;
@@ -2441,12 +2456,14 @@ async function downloadAllFromCloud(){
     if(pc){
       const persons=new Set(Object.values(patrolData.dayStats).flatMap(s=>s.persons||[]));
       pc.style.display='';
-      pc.innerHTML=`☁ 雲端合併：<strong>${patrolData.months.join(' / ')}</strong> ／ <strong>${allDays}</strong> 天 ／ <strong>${persons.size}</strong> 人員`
+      pc.innerHTML=`☁ 雲端：<strong>${patrolData.months.join(' / ')}</strong> ／ <strong>${allDays}</strong> 天 ／ <strong>${persons.size}</strong> 人員`
         +`<span style="float:right;font-size:10px;cursor:pointer;color:var(--green)" onclick="this.parentElement.style.display='none'">✕</span>`;
     }
+    log.textContent=`☁ 下載完成：${patrolData.months.join(' / ')} — ${allDays} 天`;
+    setTimeout(()=>{log.style.display='none';},4000);
     setPatrolPeriod('month'); renderPatrol();
-    toast(`☁ 已合併 ${months.length} 個月份 (${allDays} 天)`);
-  }catch(e){toast('⚠ 下載失敗: '+e.message);}
+    toast(`☁ 已合併 ${patrolData.months.length} 個月份 (${allDays} 天)`);
+  }catch(e){log.textContent='⚠ 下載失敗: '+e.message; toast('⚠ 下載失敗: '+e.message);}
 }
 
 async function loadPatrolFromCloud(ym){
